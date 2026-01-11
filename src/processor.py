@@ -22,9 +22,10 @@ def extract_numbers_from_data(row, source_type):
 
 def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28):
     """
-    Logic for Matrix Hit/Miss calculation: Relative Past (N1 = Same Day Source).
-    Column Nk for Row r_idx compares Result[r_idx] with Source[r_idx + k - 1].
-    Creates a Downward Triangle with the black 'End of History' area on the Right.
+    Logic for Matrix: Future Hit Tracking (N1 = Today's Source).
+    Column Nk always refers to Source of index k-1 (N1 = index 0 = Today).
+    Cell (r_idx, k) is active only if r_idx > k - 1 (Result is older than Source).
+    This creates the 'Downward Hypotenuse' triangle with the black area on the TOP-LEFT.
     """
     if not data_source:
         return []
@@ -35,7 +36,7 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
         d, p = extract_numbers_from_data(row, source_type)
         source_map[row['date']] = set(p)
 
-    rows_data = [] # Newest results first
+    rows_data = [] # Newest results first (Row 0 = Today)
     for row in data_source:
         it = []
         if 'xsmb_full' in row:
@@ -51,22 +52,26 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
             'source_combos': source_map.get(row['date'], set())
         })
 
-    # Prepare source_list (newest first)
+    # Prepare absolute source_list (newest first)
     source_list = [source_map.get(r['date'], set()) for r in master_data]
 
     matrix_results = []
     for r_idx, r_data in enumerate(rows_data):
         row_hits = []
         for k in range(1, max_cols + 1):
-            # Same Day / Past Source mapping:
-            # Column N1 (k=1) is Source of THIS Result day (r_idx)
-            # Column N2 (k=2) is Source of YESTERDAY relative to this Result day
-            s_idx = r_idx + k - 1
+            s_idx = k - 1
             
-            if s_idx >= len(source_list):
-                row_hits.append(None) # End of History -> Black Triangle on the Right
+            # The Mapping: Check if 'Future Source' hits in 'Past Result'
+            # Row 0 (Today) has no future sources in this view.
+            # Row 1 (Yesterday) can be hit by N1 (Today's source).
+            if r_idx <= s_idx:
+                row_hits.append(None) # Top-Left Black Triangle (Source hasn't happened yet relative to Result)
                 continue
-            
+                
+            if s_idx >= len(source_list):
+                row_hits.append([]) # End of history
+                continue
+                
             combos = source_list[s_idx]
             hits = []
             for item in r_data['items']:
@@ -75,10 +80,11 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
                     hits.append(val)
             row_hits.append(hits)
 
-        # Pending logic: If Source[r_idx] ever hits in the future (idx < r_idx)
+        # Pending logic: If THE SOURCE OF THIS ROW ever hits in its own FUTURE
+        # Future relative to row `r_idx` are rows with indices `0, 1, ..., r_idx-1`
         ever_hits_future = False
         this_source = r_data['source_combos']
-        for fut_idx in range(r_idx + 1):
+        for fut_idx in range(r_idx):
             fut_row = rows_data[fut_idx]
             for it in fut_row['items']:
                 if it.get(pos_type.lower()) in this_source:
@@ -140,17 +146,23 @@ def analyze_bet_cham(results_list, n_digits=2):
     """
     Analyze levels and suggestions for a list of predicted numbers.
     """
-    if not results_list:
-        return {}
-    
-    counter = Counter(results_list)
+    # If dicts passed, extract last 2 digits (DE)
+    clean_list = []
+    for item in results_list:
+        if isinstance(item, dict):
+            val = item.get('xsmb_full') or (str(item['all_prizes'][0]) if 'all_prizes' in item else "")
+            if val: clean_list.append(val[-2:])
+        else:
+            clean_list.append(str(item))
+            
+    counter = Counter(clean_list)
     max_c = max(counter.values()) if counter else 0
-    levels = {m: sorted([n for n, c in counter.items() if c == m]) for m in range(max_c, -1, -1)}
+    levels = {m: sorted([n for n, c in counter.items() if c == m]) for m in range(max_c, 0, -1)}
     
     # Simple Chạm/Tổng hot stats
     chams = Counter()
     tongs = Counter()
-    for n in results_list:
+    for n in clean_list:
         if len(n) == 2 and n.isdigit():
             chams[n[0]] += 1
             chams[n[1]] += 1
