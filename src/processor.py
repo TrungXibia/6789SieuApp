@@ -22,8 +22,8 @@ def extract_numbers_from_data(row, source_type):
 
 def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28):
     """
-    Logic for Matrix Hit/Miss calculation with Triangle Downwards layout.
-    pos_type: 'BC', 'CD', 'DE'
+    Logic for Matrix Hit/Miss calculation with relative mapping (N1 = 1 day ago).
+    Creates a Downward Triangle of data with the black area on the right.
     """
     if not data_source:
         return []
@@ -34,7 +34,7 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
         d, p = extract_numbers_from_data(row, source_type)
         source_map[row['date']] = set(p)
 
-    # Prepare rows with results (data_source is already newest first)
+    # Prepare rows with results (newest first)
     rows_data = []
     for row in data_source:
         actual_items = []
@@ -61,19 +61,14 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
     for r_idx, r_data in enumerate(rows_data):
         row_hits = []
         for k in range(1, max_cols + 1):
-            # Column Nk represents the Source of rows_data at index (k-1)
-            source_idx = k - 1
+            # Relative Index: source is k days older than result
+            target_idx = r_idx + k
             
-            # Triangle Downwards Condition:
-            # We only show hits in Column Nk for Row r_idx if Source Day index >= Result Day index
-            # (i.e. Source is same day or older than Result)
-            # Since index is newest first: source_idx >= r_idx
-            
-            if source_idx >= len(rows_data) or source_idx < r_idx:
-                row_hits.append(None) # Black/Hidden Triangle area
+            if target_idx >= len(rows_data):
+                row_hits.append(None) # History ends -> Black Area
                 continue
                 
-            source_combos = rows_data[source_idx]['source_combos']
+            source_combos = rows_data[target_idx]['source_combos']
             hits_in_cell = []
             for it in r_data['items']:
                 val = it.get(pos_type.lower())
@@ -82,10 +77,12 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
             row_hits.append(hits_in_cell)
 
         # Check for "Pending" (Orange color) - If the SOURCE of THIS day hits in the FUTURE
-        # Future days are indices < r_idx
+        # Future days are newer than current row (indices < r_idx)
         ever_hits_future = False
         this_source = r_data['source_combos']
-        for future_idx in range(r_idx + 1): # Including today
+        # Note: We check from index 0 up to r_idx. 
+        # If it hits on same day (r_idx) or newer days (< r_idx), it's not pending.
+        for future_idx in range(r_idx + 1):
             future_row = rows_data[future_idx]
             for it in future_row['items']:
                 if it.get(pos_type.lower()) in this_source:
