@@ -443,6 +443,71 @@ def get_bacnho_comb_preds(bn_rows, size=2, n_results=3):
     top = sorted(future_counts.items(), key=lambda x: (-x[1], x[0]))[:n_results]
     return [",".join(map(str, x[0])) for x in top]
 
+def calculate_tong_cham_stats(seqs, width=3):
+    """
+    Calculate Gap (Gan) statistics for Cham and Tong.
+    seqs: List of lists (positions 0-4)
+    width: 3 (3D) or 4 (4D)
+    """
+    L = len(seqs[0])
+    # Extract results list
+    results = []
+    for i in range(L):
+        # width=3 -> positions 2,3,4; width=4 -> positions 1,2,3,4
+        if width == 3:
+            val_list = [seqs[p][i] for p in [2, 3, 4]]
+        else:
+            val_list = [seqs[p][i] for p in [1, 2, 3, 4]]
+        results.append({
+            'val': "".join(map(str, val_list)),
+            'cham_hits': set(val_list),
+            'tong': sum(val_list) % 10
+        })
+
+    # Process oldest to newest for gap calculation
+    results_ordered = list(reversed(results))
+    c_gaps, t_gaps = {i: 0 for i in range(10)}, {i: 0 for i in range(10)}
+    c_max, t_max = {i: 0 for i in range(10)}, {i: 0 for i in range(10)}
+    
+    history_rows = []
+    for row in results_ordered:
+        current_row_data = {'cham': {}, 'tong': {}}
+        # Cham update
+        for i in range(10):
+            if i in row['cham_hits']:
+                current_row_data['cham'][i] = {'val': c_gaps[i], 'hit': True}
+                c_gaps[i] = 0
+            else:
+                c_gaps[i] += 1
+                if c_gaps[i] > c_max[i]: c_max[i] = c_gaps[i]
+                current_row_data['cham'][i] = {'val': c_gaps[i], 'hit': False}
+        # Tong update
+        for i in range(10):
+            if i == row['tong']:
+                current_row_data['tong'][i] = {'val': t_gaps[i], 'hit': True}
+                t_gaps[i] = 0
+            else:
+                t_gaps[i] += 1
+                if t_gaps[i] > t_max[i]: t_max[i] = t_gaps[i]
+                current_row_data['tong'][i] = {'val': t_gaps[i], 'hit': False}
+        
+        current_row_data['val'] = row['val']
+        history_rows.append(current_row_data)
+
+    # Calculate Exceeding (Vượt TB)
+    c_exceeding, t_exceeding = [], []
+    for i in range(10):
+        c_avg = c_max[i] / 2 if c_max[i] > 0 else 5
+        if c_gaps[i] >= c_avg: c_exceeding.append(i)
+        t_avg = t_max[i] / 2 if t_max[i] > 0 else 5
+        if t_gaps[i] >= t_avg: t_exceeding.append(i)
+
+    return {
+        'history': list(reversed(history_rows)), # Newest first for display
+        'c_gaps': c_gaps, 'c_max': c_max, 'c_exceeding': sorted(c_exceeding, key=lambda x: c_gaps[x], reverse=True),
+        't_gaps': t_gaps, 't_max': t_max, 't_exceeding': sorted(t_exceeding, key=lambda x: t_gaps[x], reverse=True)
+    }
+
 def compute_kybe_cycles(working_data, combos):
     """
     Compute cycles, gaps, and due for sets of numbers.

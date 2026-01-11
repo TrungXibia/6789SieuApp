@@ -8,7 +8,8 @@ from src.processor import (
     process_matrix, calculate_frequencies, calculate_tc_stats, 
     analyze_bet_cham, extract_numbers_from_data, join_bc_cd_de,
     compute_kybe_cycles, calculate_taixiu_stats, get_kybe_touch_levels,
-    get_frequency_matrix, get_bacnho_comb_preds, classify_xito, classify_ngau
+    get_frequency_matrix, get_bacnho_comb_preds, classify_xito, classify_ngau,
+    calculate_tong_cham_stats
 )
 
 # Set page config
@@ -79,8 +80,8 @@ if not st.session_state.data_ready or 'last_config' not in st.session_state or s
         st.session_state.data_ready = True; st.session_state.last_config = (region, station, num_days)
 
 # --- APP TABS ---
-t_data, t_matrix, t_freq, t_tc3, t_tc4, t_bet, t_kybe = st.tabs([
-    "📋 DỮ LIỆU", "🎯 MATRIX", "📊 TẦN SUẤT 1", "📅 TỔNG & CHẠM 3", "🔢 TỔNG & CHẠM 4", "📈 BỆT CHẠM", "🧠 KYBE - GROK"
+t_data, t_matrix, t_freq, t_kybe = st.tabs([
+    "📋 DỮ LIỆU", "🎯 MATRIX", "📊 TẦN SUẤT 1", "🧠 KYBE - GROK"
 ])
 
 with t_data:
@@ -155,50 +156,6 @@ with t_freq:
         st.dataframe(pd.DataFrame(f_data), use_container_width=True)
     else: st.info("Không đủ dữ liệu.")
 
-with t_tc3:
-    st.subheader("📅 Tổng & Chạm 3 Càng (Hàng Trăm)")
-    stats = calculate_tc_stats(st.session_state.target_data[offset:], pos_idx=-3)
-    if stats:
-        lat = stats[0]; st.write(f"**Gan hiện tại (Kỳ {lat['date']}):**")
-        cols = st.columns(10)
-        for i in range(10): cols[i].metric(f"Số {i}", lat['cham_gaps'][str(i)])
-        df = pd.DataFrame([{'Ngày': r['date'], 'GĐB': r['result'], **{f"G{i}": r['cham_gaps'][str(i)] for i in range(10)}} for r in stats])
-        st.dataframe(df.head(20), use_container_width=True)
-
-with t_tc4:
-    st.subheader("🔢 Tổng & Chạm 4 Càng (Hàng Nghìn)")
-    stats = calculate_tc_stats(st.session_state.target_data[offset:], pos_idx=-4)
-    if stats:
-        lat = stats[0]; st.write(f"**Gan hiện tại (Kỳ {lat['date']}):**")
-        cols = st.columns(10)
-        for i in range(10): cols[i].metric(f"Số {i}", lat['cham_gaps'][str(i)])
-        df = pd.DataFrame([{'Ngày': r['date'], 'GĐB': r['result'], **{f"G{i}": r['cham_gaps'][str(i)] for i in range(10)}} for r in stats])
-        st.dataframe(df.head(20), use_container_width=True)
-
-
-with t_bet:
-    st.subheader("📈 Phân tích Bệt Thẳng & Nhị hợp")
-    ana = analyze_bet_cham(st.session_state.target_data[offset:])
-    
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        st.write("**Top Chạm gánh:**")
-        for k, v in ana['top_chams']:
-            st.write(f"- Chạm {k}: {v} lần")
-    with c2:
-        st.write("**Top Tổng gánh:**")
-        cols = st.columns(5)
-        for i, (k, v) in enumerate(ana['top_tongs']):
-            cols[i].metric(f"Tổng {k}", v)
-
-    st.write("---")
-    st.write("### 💎 Dàn Bệt & Nhị hợp mới nhất")
-    if ana.get('recent_bets'):
-        for bet in ana['recent_bets'][:5]: # Show top 5 recent
-            with st.expander(f"🎲 Bệt: {', '.join(bet['bets'])} ({bet['count']} số)"):
-                st.code(", ".join(bet['dan']))
-    else:
-        st.info("Chưa phát hiện tín hiệu Bệt Thẳng trong 30 ngày gần đây.")
 
 with t_kybe:
     st.subheader("🧠 Dashboard Kybe - Grok Advanced")
