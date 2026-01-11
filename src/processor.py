@@ -22,8 +22,8 @@ def extract_numbers_from_data(row, source_type):
 
 def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28):
     """
-    Logic for Matrix Hit/Miss calculation with relative mapping (N1 = 1 day ago).
-    Creates a Downward Triangle of data with the black area on the right.
+    Logic for Matrix Hit/Miss calculation with absolute mapping (N1 = Source of newest day).
+    Creates a Downward Triangle of data with the black area on the left.
     """
     if not data_source:
         return []
@@ -61,14 +61,16 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
     for r_idx, r_data in enumerate(rows_data):
         row_hits = []
         for k in range(1, max_cols + 1):
-            # Relative Index: source is k days older than result
-            target_idx = r_idx + k
+            # Absolute Index: Nk is source of newest_date - (k-1)
+            source_idx = k - 1
             
-            if target_idx >= len(rows_data):
-                row_hits.append(None) # History ends -> Black Area
+            # Triangle Condition: Only show if Result Date >= Source Date
+            # i.e. r_idx <= source_idx (since index 0 is newest)
+            if source_idx >= len(rows_data) or r_idx > source_idx:
+                row_hits.append(None) # Black Area
                 continue
                 
-            source_combos = rows_data[target_idx]['source_combos']
+            source_combos = rows_data[source_idx]['source_combos']
             hits_in_cell = []
             for it in r_data['items']:
                 val = it.get(pos_type.lower())
@@ -80,8 +82,6 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
         # Future days are newer than current row (indices < r_idx)
         ever_hits_future = False
         this_source = r_data['source_combos']
-        # Note: We check from index 0 up to r_idx. 
-        # If it hits on same day (r_idx) or newer days (< r_idx), it's not pending.
         for future_idx in range(r_idx + 1):
             future_row = rows_data[future_idx]
             for it in future_row['items']:
@@ -94,7 +94,8 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
             'date': r_data['date'],
             'items': r_data['items'],
             'hits': row_hits,
-            'pending': not ever_hits_future and len(this_source) > 0
+            'pending': not ever_hits_future and len(this_source) > 0,
+            'combos': list(this_source)
         })
     return matrix_results
 
@@ -164,3 +165,46 @@ def analyze_bet_cham(results_list, n_digits=2):
         'top_chams': sorted(chams.items(), key=lambda x: x[1], reverse=True)[:3],
         'top_tongs': sorted(tongs.items(), key=lambda x: x[1], reverse=True)[:3]
     }
+
+def join_bc_cd_de(selected_map):
+    """
+    selected_map: { date: {'has_bc': bool, 'has_cd': bool, 'has_de': bool, 'combos': list} }
+    """
+    total_2d = Counter()
+    total_3d = Counter()
+    total_4d = Counter()
+    
+    for date, info in selected_map.items():
+        combos = info['combos']
+        if info['has_bc']:
+            r3, r4 = set(), set()
+            for bc in combos:
+                for d in "0123456789": r3.add(bc + d)
+                for i in range(100): r4.add(bc + f"{i:02d}")
+            total_3d.update(r3); total_4d.update(r4)
+        
+        if info['has_cd']:
+            r3, r4 = set(), set()
+            for cd in combos:
+                for d in "0123456789": 
+                    r3.add(cd + d)
+                    r3.add(d + cd)
+                for i in range(100): 
+                    r4.add(f"{i//10:01d}" + cd + f"{i%10:01d}")
+            total_3d.update(r3); total_4d.update(r4)
+            
+        if info['has_de']:
+            r2, r3, r4 = set(), set()
+            for de in combos:
+                r2.add(de)
+                for d in "0123456789": r3.add(d + de)
+                for i in range(100): r4.add(f"{i:02d}" + de)
+            total_2d.update(r2); total_3d.update(r3); total_4d.update(r4)
+            
+    lvl_data = defaultdict(lambda: {'2d': set(), '3d': set(), '4d': set()})
+    all_freqs = {0}
+    for n, f in total_2d.items(): lvl_data[f]['2d'].add(n); all_freqs.add(f)
+    for n, f in total_3d.items(): lvl_data[f]['3d'].add(n); all_freqs.add(f)
+    for n, f in total_4d.items(): lvl_data[f]['4d'].add(n); all_freqs.add(f)
+    
+    return lvl_data, max(all_freqs)

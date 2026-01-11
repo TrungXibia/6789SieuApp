@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from src.constants import *
 from src.scraper import fetch_xsmb_full, fetch_station_data, fetch_dien_toan, fetch_than_tai
-from src.processor import process_matrix, calculate_frequencies, analyze_bet_cham, extract_numbers_from_data
+from src.processor import process_matrix, calculate_frequencies, analyze_bet_cham, extract_numbers_from_data, join_bc_cd_de
 
 # Set page config
 st.set_page_config(page_title="SieuGa Web - Cyber Dark", layout="wide", initial_sidebar_state="expanded")
@@ -12,26 +12,14 @@ st.set_page_config(page_title="SieuGa Web - Cyber Dark", layout="wide", initial_
 # --- CUSTOM CYBER DARK CSS ---
 st.markdown("""
 <style>
-    /* Main Background */
     .stApp { background-color: #0f172a; color: #e2e8f0; }
-    
-    /* Sidebar */
     [data-testid="stSidebar"] { background-color: #1e293b; border-right: 1px solid #334155; }
-    
-    /* Tabs */
     .stTabs [data-baseweb="tab-list"] { background-color: #1e293b; border-radius: 12px; padding: 6px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
     .stTabs [data-baseweb="tab"] { color: #94a3b8; font-weight: 600; padding: 10px 20px; transition: all 0.2s; }
     .stTabs [data-baseweb="tab"]:hover { color: #10b981; }
     .stTabs [data-baseweb="tab"][aria-selected="true"] { color: #10b981; border-bottom: 2px solid #10b981; }
-
-    /* Headers */
     h1, h2, h3 { color: #10b981 !important; font-family: 'Inter', sans-serif; }
-    
-    /* Dataframes */
     .stDataFrame { border: 1px solid #334155; border-radius: 8px; overflow: hidden; }
-    
-    /* Custom Badge for Matrix */
-    .matrix-hit { background-color: #ef4444; color: white; border-radius: 4px; padding: 2px 4px; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -69,25 +57,16 @@ if 'data_ready' not in st.session_state:
 
 @st.cache_data(ttl=3600)
 def load_all_data(region, station, num_days):
-    # Fetch Master Data (ĐT + TT)
     dt = fetch_dien_toan(num_days + 30)
     tt = fetch_than_tai(num_days + 30)
-    
-    # Merge into unified master_data list
     m_map = {r['date']: {'dt_numbers': r['dt_numbers']} for r in dt}
     for r in tt:
         if r['date'] in m_map: m_map[r['date']]['tt_number'] = r['tt_number']
         else: m_map[r['date']] = {'tt_number': r['tt_number']}
-    
     master_data = sorted([{'date': k, **v} for k, v in m_map.items()], 
                         key=lambda x: datetime.strptime(x['date'], "%d/%m/%Y"), reverse=True)
-    
-    # Fetch Target Data (Station/MB)
-    if region == "Miền Bắc":
-        target_data = fetch_xsmb_full(num_days + 30)
-    else:
-        target_data = fetch_station_data(station, num_days + 30)
-        
+    if region == "Miền Bắc": target_data = fetch_xsmb_full(num_days + 30)
+    else: target_data = fetch_station_data(station, num_days + 30)
     return master_data, target_data
 
 if not st.session_state.data_ready or 'last_config' not in st.session_state or st.session_state.last_config != (region, station, num_days):
@@ -98,36 +77,33 @@ if not st.session_state.data_ready or 'last_config' not in st.session_state or s
         st.session_state.data_ready = True
         st.session_state.last_config = (region, station, num_days)
 
-# --- MAIN INTERFACE: TABS ---
+# --- APP TABS ---
 t_data, t_matrix, t_freq, t_bet = st.tabs(["📋 DỮ LIỆU", "🎯 MATRIX", "📊 TẦN SUẤT", "📈 BỆT CHẠM"])
 
 with t_data:
     st.subheader(f"Kết quả xổ số: {station}")
     if st.session_state.target_data:
-        df_target = pd.DataFrame(st.session_state.target_data).head(20)
-        st.dataframe(df_target, use_container_width=True)
-    else:
-        st.warning("Không có dữ liệu cho đài này.")
+        st.dataframe(pd.DataFrame(st.session_state.target_data).head(20), use_container_width=True)
+    else: st.warning("Không có dữ liệu.")
 
 with t_matrix:
     st.subheader("Bảng đối soát Matrix (N1-N28)")
     pos = st.radio("Vị trí soi:", ["DE", "CD", "BC"], horizontal=True)
     
-    # Data slicing for backtest
-    working_target = st.session_state.target_data[offset : offset + 40]
-    working_master = st.session_state.master_data # Keep full master for source lookup
+    # Logic Processing
+    results = process_matrix(st.session_state.target_data[offset:], st.session_state.master_data, source_type, pos)
     
-    matrix_res = process_matrix(working_target, working_master, source_type, pos)
+    # Matrix Selector Sidebar logic
+    st.sidebar.divider()
+    st.sidebar.subheader("💎 GHÉP DÀN BC-CD-DE")
     
-    # Construct DataFrame for Matrix
-    m_data = []
-    for r in matrix_res:
-        row = [r['date']]
-        # Prize value for display
-        db_val = r['items'][0]['db'] if r['items'] else ""
-        row.append(db_val)
+    # multi-select or list of checkboxes for Join feature
+    if 'selected_join' not in st.session_state:
+        st.session_state.selected_join = {} # date -> {bc, cd, de, combos}
         
-        # Hit values for N1-28
+    m_data = []
+    for i, r in enumerate(results[:40]):
+        row = [r['date'], r['items'][0]['db'] if r['items'] else ""]
         for cell in r['hits']:
             if cell: row.append(", ".join(cell))
             elif cell is None: row.append("")
@@ -140,90 +116,81 @@ with t_matrix:
     # --- PANDAS STYLER ---
     def style_matrix(df):
         styles = pd.DataFrame('', index=df.index, columns=df.columns)
-        
-        # Default for the content cells: Dark slate/blue-gray
         styles.iloc[:, 2:] = 'background-color: #1e293b; color: #94a3b8;'
-
-        for i, r in enumerate(matrix_res):
-            # 1. Background for Pending rows (Source hasn't hit yet) -> Dark Orange
-            if r['pending']:
-                styles.iloc[i, :2] = 'background-color: #92400e; color: #fef3c7;'
-            
+        for i, r in enumerate(results[:40]):
+            if r['pending']: styles.iloc[i, :2] = 'background-color: #92400e; color: #fef3c7;'
             for j, hit_val in enumerate(r['hits']):
                 col_idx = j + 2
-                if hit_val is None:
-                    # Trapped in the "Future Triangle" -> Black
-                    styles.iloc[i, col_idx] = 'background-color: #000000; color: #000000;'
-                elif hit_val:
-                    # HIT! -> Bright Red
-                    styles.iloc[i, col_idx] = 'background-color: #ef4444; color: #ffffff; font-weight: bold;'
-                else:
-                    # Normal cell (No hit) -> Already handled by default, or refine if pending
-                    if r['pending'] and col_idx == (i + 2):
-                        # The diagonal cell of a pending row
-                        styles.iloc[i, col_idx] = 'background-color: #92400e; color: #fef3c7; border: 1px solid #f59e0b;'
-
+                if hit_val is None: styles.iloc[i, col_idx] = 'background-color: #000000; color: #000000;'
+                elif hit_val: styles.iloc[i, col_idx] = 'background-color: #ef4444; color: #ffffff; font-weight: bold;'
         return styles
 
-    st.dataframe(df_matrix.style.apply(style_matrix, axis=None), use_container_width=True, height=600)
+    st.dataframe(df_matrix.style.apply(style_matrix, axis=None), use_container_width=True, height=500)
+
+    # --- JOIN SECTION ---
+    with st.expander("�️ GHÉP DÀN (Mở rộng 3D/4D từ Matrix)", expanded=True):
+        st.write("Chọn các ngày và vị trí muốn ghép dàn:")
+        
+        # Display selection grid
+        sel_dates = [r['date'] for r in results[:15]] # limit to 15 latest
+        
+        join_map = {}
+        cols = st.columns([2, 1, 1, 1])
+        cols[0].write("**Ngày**")
+        cols[1].write("**BC**")
+        cols[2].write("**CD**")
+        cols[3].write("**DE**")
+        
+        for r in results[:15]:
+            d = r['date']
+            col = st.columns([2, 1, 1, 1])
+            col[0].write(d)
+            sel_bc = col[1].checkbox("BC", key=f"join_bc_{d}")
+            sel_cd = col[2].checkbox("CD", key=f"join_cd_{d}")
+            sel_de = col[3].checkbox("DE", key=f"join_de_{d}")
+            if sel_bc or sel_cd or sel_de:
+                join_map[d] = {'has_bc': sel_bc, 'has_cd': sel_cd, 'has_de': sel_de, 'combos': r['combos']}
+        
+        if st.button("🔥 GHÉP DÀN & TỔNG HỢP", use_container_width=True):
+            if not join_map:
+                st.error("Vui lòng tích chọn ít nhất 1 vị trí (BC/CD/DE) để ghép.")
+            else:
+                lvl_data, max_f = join_bc_cd_de(join_map)
+                st.session_state.join_results = (lvl_data, max_f)
+                
+        if 'join_results' in st.session_state:
+            lvl_data, max_f = st.session_state.join_results
+            st.divider()
+            st.subheader("💎 Kết quả ghép dàn theo Mức")
+            
+            for key, lab in [('4d', "4D (Bốn càng)"), ('3d', "3D (Ba càng)"), ('2d', "2D (Nhị hợp)")]:
+                has_any = any(lvl_data[l][key] for l in range(max_f, 0, -1))
+                if has_any:
+                    st.markdown(f"### {lab}")
+                    for l in range(max_f, 0, -1):
+                        nums = sorted(list(lvl_data[l][key]))
+                        if nums:
+                            st.write(f"**Mức {l}** ({len(nums)} số):")
+                            st.code(", ".join(nums))
 
 with t_freq:
-    st.subheader("📊 Tần suất Chạm & Cặp (Rolling 7)")
+    st.subheader("📊 Tần suất Rolling 7")
     freq_data = calculate_frequencies(st.session_state.master_data[offset:], source_type)
-    
     if freq_data:
-        # Show Top Levels highlight
         latest = freq_data[0]
-        st.info(f"Kỳ gần nhất: {latest['date']}")
-        
         c1, c2 = st.columns(2)
         with c1:
-            st.write("🔥 **Chạm Hot (Mức 1, 2, 3):**")
-            for i, lv in enumerate(latest['digit_levels']):
-                st.write(f"Mức {i+1}: `{', '.join(lv)}`")
+            st.write("🔥 **Chạm Hot:**")
+            for i, lv in enumerate(latest['digit_levels']): st.write(f"Mức {i+1}: `{', '.join(lv)}`")
         with c2:
-            st.write("🔥 **Cặp Hot (Mức 1, 2):**")
-            for i, lv in enumerate(latest['pair_levels']):
-                st.write(f"Mức {i+1}: `{', '.join(lv)}`")
-        
-        # Detailed rolling dataframe
-        df_f = pd.DataFrame(freq_data)
-        st.dataframe(df_f, use_container_width=True)
-    else:
-        st.info("Cần ít nhất 7 ngày dữ liệu để tính tần suất.")
+            st.write("🔥 **Cặp Hot:**")
+            for i, lv in enumerate(latest['pair_levels']): st.write(f"Mức {i+1}: `{', '.join(lv)}`")
+        st.dataframe(pd.DataFrame(freq_data), use_container_width=True)
+    else: st.info("Không đủ dữ liệu.")
 
 with t_bet:
-    st.subheader("📈 Phân tích nhịp bệt & Gợi ý")
-    
-    # Example Suggestion Logic: Top hot pairs from Matrix + Freq
-    # Collect some numbers to analyze
-    suggest_nums = []
-    # If freq has mức 1
-    if freq_data:
-        latest = freq_data[0]
-        # Generate 2D from top chams
-        top_chams = latest['digit_levels'][0] if latest['digit_levels'] else []
-        for a in top_chams:
-            for b in top_chams:
-                suggest_nums.append(a+b)
-                
-    if suggest_nums:
-        ana = analyze_bet_cham(suggest_nums)
-        st.success(f"Dàn gợi ý dựa trên Tần suất Hot ({len(suggest_nums)} số)")
-        
-        l1, l2 = st.columns(2)
-        with l1:
-            st.write("**Top Chạm:**")
-            st.write(" | ".join([f"{k}({v})" for k, v in ana['top_chams']]))
-        with l2:
-            st.write("**Top Tổng:**")
-            st.write(" | ".join([f"{k}({v})" for k, v in ana['top_tongs']]))
-            
-        st.write("**Mức số:**")
-        for m, nums in ana['levels'].items():
-            if m > 0: st.code(f"Mức {m}: {', '.join(nums)}")
-    else:
-        st.info("Chưa đủ dữ liệu phân tích bệt.")
+    st.subheader("📈 Phân tích Bệt Chạm")
+    st.info("Phân tích bệt dựa trên dàn chọn thủ công hoặc top hot...")
 
 st.divider()
-st.caption(f"SieuGa Streamlit v2.0 | {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+st.caption(f"SieuGa Streamlit v2.5 | {datetime.now().strftime('%d/%m/%Y %H:%M')}")
