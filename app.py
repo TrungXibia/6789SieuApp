@@ -224,52 +224,57 @@ with t_kybe:
             sum3_toks = [str((seqs[2][i] + seqs[3][i] + seqs[4][i]) % 10) for i in range(L)]
             sum5_toks = [str(sum(seqs[p][i] for p in range(5)) % 10) for i in range(L)]
             
-            c_main, c_side = st.columns([3, 1], gap="small")
+            c_main, c_side = st.columns([7, 3], gap="medium")
             
             with c_main:
                 st.write("### 📏 Kybe Grid (40 kỳ gần nhất)")
-                # Grid Header
-                grid_cols = st.columns([1.8] + [1]*20, gap="small")
-                # Row 1-5: Positions
-                pos_labels = ["C.Ngàn", "Ngàn", "Trăm", "Chục", "Đơn vị", "Xì Tố", "Ngầu", "Tổng 3", "Tổng 5"]
                 
-                def render_row(label, data, color="#94a3b8", is_bold=True, p_idx=None):
-                    cols = st.columns([1.8] + [1]*20, gap="small")
-                    cols[0].write(f"**{label}**")
+                # HTML Table for perfect symmetry and tight padding
+                rows_html = []
+                pos_labels = ["C.Ngàn", "Ngàn", "Trăm", "Chục", "Đơn vị", "Xì Tố", "Ngầu", "Tổng 3", "Tổng 5"]
+                row_colors = ["#f8fafc", "#f8fafc", "#f8fafc", "#f8fafc", "#f8fafc", "#93c5fd", "#ec4899", "#a855f7", "#f97316"]
+                
+                table_style = """
+                <style>
+                    .kybe-table { width: 100%; border-collapse: separate; border-spacing: 2px; font-family: 'Consolas', monospace; table-layout: fixed; }
+                    .kybe-table th, .kybe-table td { padding: 1px 2px; text-align: center; border-radius: 3px; font-size: 13px; }
+                    .label-cell { text-align: left !important; font-weight: bold; color: #94a3b8; width: 80px; }
+                    .data-cell { background: #1e293b; color: #f8fafc; border: 1px solid #334155; }
+                    .gan-cell { background: #854d0e !important; color: #facc15 !important; border: 1px solid #facc15 !important; font-weight: bold; }
+                    .token-cell { background: #0f172a; border: 1px solid #1e293b; }
+                </style>
+                """
+                
+                html = '<table class="kybe-table">'
+                for p in range(9):
+                    html += f'<tr><td class="label-cell">{pos_labels[p]}</td>'
+                    data = []
+                    if p < 5: data = seqs[p]
+                    elif p == 5: data = xi_toks
+                    elif p == 6: data = ng_toks
+                    elif p == 7: data = sum3_toks
+                    elif p == 8: data = sum5_toks
+                    
+                    color = row_colors[p]
                     for i in range(min(len(data), 20)):
                         val = data[i]
-                        bg = "#1e293b"
-                        border_color = "#334155"
+                        cls = "data-cell"
+                        if p >= 5: cls = "token-cell"
                         
-                        # Logic "Gan" (Vắng mặt 4 ngày liên tiếp)
-                        is_gan = False
-                        if i < len(data) - 4 and p_idx is not None and p_idx < 5:
+                        # Logic Gan
+                        if p < 5 and i < len(data) - 4:
                             found = False
-                            for lookback in range(1, 5):
-                                try:
-                                    # Check across all 5 digit positions in the history
-                                    for row_p in range(5):
-                                        if seqs[row_p][i+lookback] == val:
-                                            found = True; break
-                                    if found: break
-                                except: pass
-                            if not found: is_gan = True
-                        
-                        if is_gan: 
-                            bg = "#854d0e"; border_color = "#facc15" # Burned Orange / Yellow border
-                        
-                        cols[i+1].markdown(
-                            f"<div style='background:{bg}; color:{color}; text-align:center; border:1px solid {border_color}; "
-                            f"border-radius:4px; font-weight:{'bold' if is_bold else 'normal'}; font-family:Consolas, monospace; "
-                            f"font-size:13px; padding:1px 0;'>{val}</div>", 
-                            unsafe_allow_html=True
-                        )
-
-                for p in range(5): render_row(pos_labels[p], seqs[p], color="#f8fafc", p_idx=p)
-                render_row(pos_labels[5], xi_toks, color="#93c5fd", is_bold=False)
-                render_row(pos_labels[6], ng_toks, color="#ec4899")
-                render_row(pos_labels[7], sum3_toks, color="#a855f7")
-                render_row(pos_labels[8], sum5_toks, color="#f97316")
+                            for lb in range(1, 5):
+                                for rp in range(5):
+                                    if seqs[rp][i+lb] == val: found = True; break
+                                if found: break
+                            if not found: cls += " gan-cell"
+                            
+                        html += f'<td class="{cls}" style="color: {color}">{val}</td>'
+                    html += '</tr>'
+                html += '</table>'
+                
+                st.markdown(table_style + html, unsafe_allow_html=True)
                 
                 st.divider()
                 st.write("### 🔢 Chu kỳ Bộ 3 & Bộ 4")
