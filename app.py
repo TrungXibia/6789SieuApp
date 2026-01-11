@@ -117,14 +117,41 @@ with t_matrix:
         add_to_map(sel_bc, 'bc'); add_to_map(sel_cd, 'cd'); add_to_map(sel_de, 'de')
             
         if join_map:
+            # --- CSS ---
+            st.markdown("""
+            <style>
+            .res-card {
+                border: 1px solid rgba(16, 185, 129, 0.4);
+                border-radius: 10px;
+                padding: 15px;
+                background-color: rgba(16, 185, 129, 0.05);
+                margin-bottom: 10px;
+                height: 100%;
+            }
+            .src-note {
+                color: #94a3b8;
+                font-size: 0.8rem;
+                padding: 4px 8px;
+                border-left: 2px solid #10b981;
+                margin-bottom: 4px;
+                background: rgba(255,255,255,0.02);
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            # --- NOTES ---
+            with st.expander("📝 Chi tiết dàn nguồn (Note)", expanded=True):
+                for d, info in join_map.items():
+                    pos_list = [p.upper() for p in ['bc','cd','de'] if info[f'has_{p}']]
+                    st.markdown(f"<div class='src-note'>📅 <b>{d} ({'+'.join(pos_list)}):</b> {', '.join(info['combos'])}</div>", unsafe_allow_html=True)
+
             lvl_data, _ = join_bc_cd_de(join_map)
             with st.container():
                 st.write("---")
                 
-                # Determine visible columns
                 show_4d = len(sel_bc) > 0
                 show_3d = len(sel_bc) > 0 or len(sel_cd) > 0
-                show_2d = True # Always show 2D if anything selected
+                show_2d = True
                 
                 cols_to_show = []
                 if show_4d: cols_to_show.append(('4d', '4D'))
@@ -135,12 +162,11 @@ with t_matrix:
                 
                 for idx, (k, label) in enumerate(cols_to_show):
                     with res_cols[idx]:
+                        st.markdown(f"<div class='res-card'>", unsafe_allow_html=True)
                         st.write(f"**{label}**")
-                        # Find local max frequency for this key 'k'
                         local_freqs = [f for f in lvl_data.keys() if lvl_data[f][k]]
                         if local_freqs:
                             m_max = max(local_freqs)
-                            # Show top 2 local levels
                             for l in range(m_max, max(0, m_max-2), -1):
                                 nums = sorted(list(lvl_data[l][k]))
                                 if nums:
@@ -148,6 +174,7 @@ with t_matrix:
                                     st.code(", ".join(nums))
                         else:
                             st.caption("Không có số.")
+                        st.markdown("</div>", unsafe_allow_html=True)
                 st.write("---")
     
     m_data = []
