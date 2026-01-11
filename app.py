@@ -92,6 +92,46 @@ with t_matrix:
     pos = st.radio("Vị trí soi:", ["DE", "CD", "BC"], horizontal=True)
     results = process_matrix(st.session_state.target_data[offset:], st.session_state.master_data, source_type, pos)
     
+    # --- SMART GHÉP DÀN (TOP SELECTION) ---
+    with st.container():
+        st.write("### 🔥 GHÉP DÀN THÔNG MINH")
+        pending_dates = [r['date'] for r in results if r['pending']]
+        all_dates = [r['date'] for r in results[:20]]
+        
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            sel_dates = st.multiselect("📅 Chọn ngày ghép:", all_dates, default=pending_dates[:5] if pending_dates else [])
+        with c2:
+            st.write("Vị trí:")
+            g_cols = st.columns(3)
+            g_bc = g_cols[0].checkbox("BC", value=True)
+            g_cd = g_cols[1].checkbox("CD", value=False)
+            g_de = g_cols[2].checkbox("DE", value=True)
+
+        if sel_dates:
+            join_map = {}
+            for d in sel_dates:
+                # Find the combos for this date in results
+                match = next((r for r in results if r['date'] == d), None)
+                if match:
+                    join_map[d] = {'has_bc': g_bc, 'has_cd': g_cd, 'has_de': g_de, 'combos': match['combos']}
+            
+            if join_map:
+                lvl, max_f = join_bc_cd_de(join_map)
+                with st.container():
+                    st.write("---")
+                    res_cols = st.columns(3)
+                    for idx, (k, label) in enumerate([('4d','4D'),('3d','3D'),('2d','2D')]):
+                        with res_cols[idx]:
+                            st.write(f"**{label}**")
+                            # Show only top level (highest frequency)
+                            nums = sorted(list(lvl[max_f][k]))
+                            if nums: 
+                                st.caption(f"Mức {max_f} ({len(nums)} số):")
+                                st.code(", ".join(nums))
+                            else: st.caption("Không có số.")
+                    st.write("---")
+    
     m_data = []
     for r in results[:40]:
         row = [r['date'], r['raw_src']]
@@ -103,42 +143,17 @@ with t_matrix:
     
     def style_matrix(df):
         styles = pd.DataFrame('', index=df.index, columns=df.columns)
-        # Zone Background Colors (Misses)
         z_miss = ["#154360"]*7 + ["#6e4506"]*7 + ["#511610"]*7 + ["#4b1e52"]*7
-        
         for i, r in enumerate(results[:40]):
-            # Header columns
             if r['pending']: styles.iloc[i, :2] = 'background-color: #92400e; color: #ffffff; font-weight: bold;'
             else: styles.iloc[i, :2] = 'background-color: #1a1a1a; color: #ffffff;'
-            
             for j, hit_val in enumerate(r['hits']):
                 col_idx = j + 2
-                if hit_val is None: 
-                    styles.iloc[i, col_idx] = 'background-color: #000000; color: #000000;'
-                elif hit_val: 
-                    styles.iloc[i, col_idx] = 'background-color: #ef4444; color: #ffffff; font-weight: bold;'
-                else: 
-                    styles.iloc[i, col_idx] = f'background-color: {z_miss[j]}; color: #94a3b8;'
+                if hit_val is None: styles.iloc[i, col_idx] = 'background-color: #000000; color: #000000;'
+                elif hit_val: styles.iloc[i, col_idx] = 'background-color: #ef4444; color: #ffffff; font-weight: bold;'
+                else: styles.iloc[i, col_idx] = f'background-color: {z_miss[j]}; color: #94a3b8;'
         return styles
     st.dataframe(df_matrix.style.apply(style_matrix, axis=None), use_container_width=True, height=500)
-
-    with st.expander("🛠️ GHÉP DÀN (Mở rộng 3D/4D từ Matrix)", expanded=False):
-        join_map = {}
-        st.write("Chọn ngày & vị trí để ghép dàn:")
-        for r in results[:12]:
-            d = r['date']; col = st.columns([2, 1, 1, 1])
-            col[0].write(d)
-            b = col[1].checkbox("BC", key=f"j_bc_{d}"); c = col[2].checkbox("CD", key=f"j_cd_{d}"); de = col[3].checkbox("DE", key=f"j_de_{d}")
-            if b or c or de: join_map[d] = {'has_bc':b, 'has_cd':c, 'has_de':de, 'combos':r['combos']}
-        if st.button("🔥 GHÉP DÀN", use_container_width=True) and join_map:
-            st.session_state.join_res = join_bc_cd_de(join_map)
-        if 'join_res' in st.session_state:
-            lvl, max_f = st.session_state.join_res
-            for k, label in [('4d','4D'),('3d','3D'),('2d','2D')]:
-                st.write(f"### {label}")
-                for l in range(max_f, 0, -1):
-                    nums = sorted(list(lvl[l][k]))
-                    if nums: st.write(f"**Mức {l}** ({len(nums)} số):"); st.code(", ".join(nums))
 
 with t_freq:
     st.subheader("📊 Tần suất Rolling 7")
