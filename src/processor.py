@@ -107,6 +107,7 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
 def calculate_frequencies(data_source, source_type="Cả 2 (ĐT+TT)", window_size=7):
     """
     Calculate statistics over a sliding window for every day.
+    Returns detailed data for rich visual display.
     """
     if not data_source:
         return []
@@ -137,11 +138,42 @@ def calculate_frequencies(data_source, source_type="Cả 2 (ĐT+TT)", window_siz
             sorted_c = sorted(c_to_k.keys(), reverse=True)
             return [sorted(c_to_k[c]) for c in sorted_c[:max_levels]]
 
+        # Classify pairs by frequency (Về X lần)
+        pair_classification = {
+            've_0': [],
+            've_1': [],
+            've_2': [],
+            've_3': [],
+            've_4': [],
+            've_5plus': []
+        }
+        
+        for p in range(100):
+            pair_str = f"{p:02d}"
+            count = p_counts.get(pair_str, 0)
+            if count == 0:
+                pair_classification['ve_0'].append(pair_str)
+            elif count == 1:
+                pair_classification['ve_1'].append(pair_str)
+            elif count == 2:
+                pair_classification['ve_2'].append(pair_str)
+            elif count == 3:
+                pair_classification['ve_3'].append(pair_str)
+            elif count == 4:
+                pair_classification['ve_4'].append(pair_str)
+            else:
+                pair_classification['ve_5plus'].append(pair_str)
+
+        # Get raw source string for display
+        _, _, raw_source = extract_numbers_from_data(head_row, source_type)
+
         results.append({
             'date': head_row['date'],
+            'source': raw_source,
             'digit_stats': {str(d): d_counts.get(str(d), 0) for d in range(10)},
             'digit_levels': get_levels({str(d): d_counts.get(str(d), 0) for d in range(10)}),
-            'pair_levels': get_levels({f"{p:02d}": p_counts.get(f"{p:02d}", 0) for p in range(100)}, max_levels=2)
+            'pair_levels': get_levels({f"{p:02d}": p_counts.get(f"{p:02d}", 0) for p in range(100)}, max_levels=2),
+            'pair_classification': pair_classification
         })
     return results
 

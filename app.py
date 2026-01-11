@@ -177,14 +177,62 @@ with t_freq:
     st.subheader("📊 Tần suất Rolling 7")
     f_data = calculate_frequencies(st.session_state.master_data[offset:], source_type)
     if f_data:
-        lat = f_data[0]; c1, c2 = st.columns(2)
-        with c1: 
-            st.write("**Chạm Hot:**")
-            for i, lv in enumerate(lat['digit_levels']): st.write(f"Mức {i+1}: `{', '.join(lv)}`")
-        with c2: 
-            st.write("**Cặp Hot:**")
-            for i, lv in enumerate(lat['pair_levels']): st.write(f"Mức {i+1}: `{', '.join(lv)}`")
-        st.dataframe(pd.DataFrame(f_data), use_container_width=True)
+        # Helper function for color coding
+        def get_digit_color(count):
+            if count == 0: return '#1a1a1a'
+            elif count <= 2: return '#1e3a8a'
+            elif count <= 4: return '#3b82f6'
+            elif count <= 6: return '#f97316'
+            else: return '#dc2626'
+        
+        def get_pair_color(count):
+            if count == 0: return '#0f172a'
+            elif count <= 10: return '#1e293b'
+            elif count <= 20: return '#f97316'
+            else: return '#dc2626'
+        
+        # Table 1: Digit Frequency Matrix (0-9)
+        st.write("### 🔢 Tần Suất Chạm (0-9)")
+        html = '<style>table.freq-table {width:100%; border-collapse: collapse; font-size:12px;} '
+        html += 'table.freq-table th, table.freq-table td {border:1px solid #334155; padding:4px; text-align:center;}</style>'
+        html += '<table class="freq-table"><tr><th>STT</th><th>Ngày</th><th>Kết Quả (ĐT/TT)</th>'
+        for d in range(10):
+            html += f'<th>{d}</th>'
+        html += '<th>Top 2 Mức</th></tr>'
+        
+        for idx, row in enumerate(f_data[:10]):
+            html += f'<tr><td>{idx+1}</td><td>{row["date"]}</td><td style="font-size:10px;">{row["source"]}</td>'
+            for d in range(10):
+                count = row['digit_stats'][str(d)]
+                color = get_digit_color(count)
+                html += f'<td style="background-color:{color}; color:white; font-weight:bold;">{count}</td>'
+            top2 = ' | '.join([','.join(lv) for lv in row['digit_levels'][:2]])
+            html += f'<td style="font-size:10px;">{top2}</td></tr>'
+        html += '</table>'
+        st.markdown(html, unsafe_allow_html=True)
+        
+        st.write("---")
+        
+        # Table 2: Pair Frequency Classification
+        st.write("### 🎯 Tần Suất Cặp (00-99)")
+        html2 = '<table class="freq-table"><tr><th>STT</th><th>Ngày</th><th>Kết Quả (ĐT/TT)</th>'
+        for i in range(6):
+            label = f"Về {i} lần" if i < 5 else "Về 5+ lần"
+            html2 += f'<th>{label}</th>'
+        html2 += '</tr>'
+        
+        for idx, row in enumerate(f_data[:10]):
+            html2 += f'<tr><td>{idx+1}</td><td>{row["date"]}</td><td style="font-size:10px;">{row["source"]}</td>'
+            pc = row['pair_classification']
+            for key in ['ve_0', 've_1', 've_2', 've_3', 've_4', 've_5plus']:
+                pairs = pc[key]
+                count = len(pairs)
+                color = get_pair_color(count)
+                pairs_str = ','.join(pairs) if len(pairs) <= 15 else f"{','.join(pairs[:15])}..."
+                html2 += f'<td style="background-color:{color}; color:#94a3b8; font-size:9px;">{pairs_str}<br/><span style="color:#facc15;">({count})</span></td>'
+            html2 += '</tr>'
+        html2 += '</table>'
+        st.markdown(html2, unsafe_allow_html=True)
     else: st.info("Không đủ dữ liệu.")
 
 
