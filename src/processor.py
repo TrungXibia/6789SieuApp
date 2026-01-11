@@ -22,9 +22,9 @@ def extract_numbers_from_data(row, source_type):
 
 def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28):
     """
-    Logic for Matrix Hit/Miss calculation with relative drift mapping.
-    Column Nk for Row r_idx compares Result[r_idx] with Source[k - 1 - r_idx].
-    This creates the diagonal same-source drift seen in the original app.
+    Logic for Matrix Hit/Miss calculation: Relative Past (N1 = Same Day Source).
+    Column Nk for Row r_idx compares Result[r_idx] with Source[r_idx + k - 1].
+    Creates a Downward Triangle with the black 'End of History' area on the Right.
     """
     if not data_source:
         return []
@@ -35,7 +35,7 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
         d, p = extract_numbers_from_data(row, source_type)
         source_map[row['date']] = set(p)
 
-    rows_data = [] # Newest first
+    rows_data = [] # Newest results first
     for row in data_source:
         it = []
         if 'xsmb_full' in row:
@@ -51,27 +51,20 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
             'source_combos': source_map.get(row['date'], set())
         })
 
-    # Prepare master_data list (source_list) for absolute indexing
-    # source_list[0] is newest source
+    # Prepare source_list (newest first)
     source_list = [source_map.get(r['date'], set()) for r in master_data]
 
     matrix_results = []
     for r_idx, r_data in enumerate(rows_data):
         row_hits = []
         for k in range(1, max_cols + 1):
-            # The Mapping: k - 1 identifies the 'Absolute Source Column'
-            # But the hits drift: Source index depends on Row
-            # Row 0 N1 uses Source 0. Row 1 N2 uses Source 0.
-            # So Source_Index = k - 1 - r_idx
-            
-            s_idx = k - 1 - r_idx
-            
-            if s_idx < 0:
-                row_hits.append(None) # Black Triangle area (Future Sources)
-                continue
+            # Same Day / Past Source mapping:
+            # Column N1 (k=1) is Source of THIS Result day (r_idx)
+            # Column N2 (k=2) is Source of YESTERDAY relative to this Result day
+            s_idx = r_idx + k - 1
             
             if s_idx >= len(source_list):
-                row_hits.append([]) # End of history
+                row_hits.append(None) # End of History -> Black Triangle on the Right
                 continue
             
             combos = source_list[s_idx]
@@ -211,3 +204,37 @@ def join_bc_cd_de(selected_map):
     for n, f in total_4d.items(): lvl_data[f]['4d'].add(n); all_freqs.add(f)
     
     return lvl_data, max(all_freqs)
+def calculate_tc_stats(data_source, pos_idx=-2):
+    """
+    Calculate Cham/Tong gaps for a specific position (e.g. -2 for DE, -3 for Hundreds, -4 for Thousands).
+    """
+    if not data_source: return []
+    # Use newest first, but we need to scan chronologically to find gaps
+    ordered = list(reversed(data_source))
+    cham_gan = {str(i): 0 for i in range(10)}
+    tong_gan = {str(i): 0 for i in range(10)}
+    results = []
+    
+    for row in ordered:
+        db = row.get('xsmb_full') or (str(row['all_prizes'][0]) if 'all_prizes' in row else "")
+        if not db: continue
+        
+        # Digit at position
+        digit = db[pos_idx] if len(db) >= abs(pos_idx) else None
+        # Tong (last 2 digits)
+        t_val = str((int(db[-2]) + int(db[-1])) % 10) if len(db) >= 2 else None
+        
+        for d in range(10):
+            sd = str(d)
+            if sd == digit: cham_gan[sd] = 0
+            else: cham_gan[sd] += 1
+            if sd == t_val: tong_gan[sd] = 0
+            else: tong_gan[sd] += 1
+            
+        results.append({
+            'date': row['date'],
+            'result': db,
+            'cham_gaps': cham_gan.copy(),
+            'tong_gaps': tong_gan.copy()
+        })
+    return list(reversed(results))
