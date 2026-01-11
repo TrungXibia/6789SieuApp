@@ -409,12 +409,24 @@ with t_kybe:
                 ng_in = tp_in_cols[0].text_input("Ngầu:", "0,1", key="kybe_ng")
                 tg_in = tp_in_cols[1].text_input("Tổng:", "5,6", key="kybe_tg")
                 
+                # Mode selector
+                tp_mode = st.radio("Chế độ:", ["Chạm Tổng", "Chạm", "Tổng"], horizontal=True, key="kybe_tp_mode")
+                
                 st.caption("ℹ️ *Bảng trên không bấm được, dùng nút để lấy số mới nhất.*")
                 
-                touch_res = get_kybe_touch_levels(set(ng_in.split(",")), set(tg_in.split(",")))
-                st.caption(f"M2: {','.join(touch_res['muc2'][:10])}")
-                st.caption(f"M1: {','.join(touch_res['muc1'][:10])}")
-                st.caption(f"M0: {','.join(touch_res['muc0'][:10])}")
+                # Robust parsing: extract digits from string (handles "778" -> {7, 8})
+                ng_set = set(c for c in ng_in if c.isdigit())
+                tg_set = set(c for c in tg_in if c.isdigit())
+                
+                touch_res = get_kybe_touch_levels(ng_set, tg_set, mode=tp_mode)
+                
+                # Display results with clearer formatting
+                def fmt_res(lst):
+                    return ','.join(lst) if lst else "..."
+                    
+                st.success(f"M0 (Trượt): {fmt_res(touch_res['muc0'])}")
+                st.warning(f"M1 (1 vế): {fmt_res(touch_res['muc1'])}")
+                st.error(f"M2 (2 vế): {fmt_res(touch_res['muc2'])}")
     else:
         st.info("Không đủ dữ liệu Kybe.")
 
