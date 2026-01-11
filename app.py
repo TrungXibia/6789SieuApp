@@ -236,12 +236,12 @@ with t_freq:
                 count = len(pairs)
                 color = get_pair_color(count)
                 
-                # Show full list (no truncation)
-                pairs_str = ','.join(pairs)
+                # Show full list (no truncation) with auto-wrap
+                pairs_str = ', '.join(pairs) # Added space for better wrapping
                 
-                html2 += f'<td style="background-color:{color}; color:#e2e8f0; vertical-align: top;">'
-                html2 += f'<div style="font-size:11px; line-height: 1.4; max-height: 80px; overflow-y: auto;">{pairs_str}</div>'
-                html2 += f'<div style="font-size:10px; color:#94a3b8; margin-top:4px;">SL: {count}</div></td>'
+                html2 += f'<td style="background-color:{color}; color:#e2e8f0; vertical-align: top; min-width: 120px;">'
+                html2 += f'<div style="font-size:11px; font-weight:bold; color:#cbd5e1; margin-bottom:4px;">SL: {count}</div>'
+                html2 += f'<div style="font-size:11px; line-height: 1.5; white-space: normal; word-wrap: break-word;">{pairs_str}</div></td>'
             html2 += '</tr>'
         html2 += '</table>'
         st.markdown(html2, unsafe_allow_html=True)
