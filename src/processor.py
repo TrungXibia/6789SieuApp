@@ -22,69 +22,72 @@ def extract_numbers_from_data(row, source_type):
 
 def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28):
     """
-    Logic for Matrix Hit/Miss calculation with absolute mapping (N1 = Source of newest day).
-    Creates a Downward Triangle of data with the black area on the left.
+    Logic for Matrix Hit/Miss calculation with relative drift mapping.
+    Column Nk for Row r_idx compares Result[r_idx] with Source[k - 1 - r_idx].
+    This creates the diagonal same-source drift seen in the original app.
     """
     if not data_source:
         return []
 
-    # Map master_data for quick source lookup by date
+    # Map master_data for lookup
     source_map = {}
     for row in master_data:
         d, p = extract_numbers_from_data(row, source_type)
         source_map[row['date']] = set(p)
 
-    # Prepare rows with results (newest first)
-    rows_data = []
+    rows_data = [] # Newest first
     for row in data_source:
-        actual_items = []
+        it = []
         if 'xsmb_full' in row:
             db = row['xsmb_full']
-            actual_items.append({'db': db, 'bc': db[-4:-2], 'cd': db[-3:-1], 'de': db[-2:]})
+            it.append({'db': db, 'bc': db[-4:-2], 'cd': db[-3:-1], 'de': db[-2:]})
         elif 'all_prizes' in row:
-            prizes = row['all_prizes']
-            db = str(prizes[0]) if prizes else ""
-            actual_items.append({
-                'db': db,
-                'bc': db[-4:-2] if len(db) >= 4 else '',
-                'cd': db[-3:-1] if len(db) >= 3 else '',
-                'de': db[-2:] if len(db) >= 2 else ''
-            })
+            db = str(row['all_prizes'][0]) if row['all_prizes'] else ""
+            it.append({'db': db, 'bc': db[-4:-2] if len(db)>=4 else '', 'cd': db[-3:-1] if len(db)>=3 else '', 'de': db[-2:] if len(db)>=2 else ''})
         
         rows_data.append({
             'date': row['date'],
-            'items': actual_items,
+            'items': it,
             'source_combos': source_map.get(row['date'], set())
         })
+
+    # Prepare master_data list (source_list) for absolute indexing
+    # source_list[0] is newest source
+    source_list = [source_map.get(r['date'], set()) for r in master_data]
 
     matrix_results = []
     for r_idx, r_data in enumerate(rows_data):
         row_hits = []
         for k in range(1, max_cols + 1):
-            # Absolute Index: Nk is source of newest_date - (k-1)
-            source_idx = k - 1
+            # The Mapping: k - 1 identifies the 'Absolute Source Column'
+            # But the hits drift: Source index depends on Row
+            # Row 0 N1 uses Source 0. Row 1 N2 uses Source 0.
+            # So Source_Index = k - 1 - r_idx
             
-            # Triangle Condition: Only show if Result Date >= Source Date
-            # i.e. r_idx <= source_idx (since index 0 is newest)
-            if source_idx >= len(rows_data) or r_idx > source_idx:
-                row_hits.append(None) # Black Area
+            s_idx = k - 1 - r_idx
+            
+            if s_idx < 0:
+                row_hits.append(None) # Black Triangle area (Future Sources)
                 continue
-                
-            source_combos = rows_data[source_idx]['source_combos']
-            hits_in_cell = []
-            for it in r_data['items']:
-                val = it.get(pos_type.lower())
-                if val and val in source_combos:
-                    hits_in_cell.append(val)
-            row_hits.append(hits_in_cell)
+            
+            if s_idx >= len(source_list):
+                row_hits.append([]) # End of history
+                continue
+            
+            combos = source_list[s_idx]
+            hits = []
+            for item in r_data['items']:
+                val = item.get(pos_type.lower())
+                if val and val in combos:
+                    hits.append(val)
+            row_hits.append(hits)
 
-        # Check for "Pending" (Orange color) - If the SOURCE of THIS day hits in the FUTURE
-        # Future days are newer than current row (indices < r_idx)
+        # Pending logic: If Source[r_idx] ever hits in the future (idx < r_idx)
         ever_hits_future = False
         this_source = r_data['source_combos']
-        for future_idx in range(r_idx + 1):
-            future_row = rows_data[future_idx]
-            for it in future_row['items']:
+        for fut_idx in range(r_idx + 1):
+            fut_row = rows_data[fut_idx]
+            for it in fut_row['items']:
                 if it.get(pos_type.lower()) in this_source:
                     ever_hits_future = True
                     break

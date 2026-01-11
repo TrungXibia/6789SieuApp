@@ -78,7 +78,9 @@ if not st.session_state.data_ready or 'last_config' not in st.session_state or s
         st.session_state.last_config = (region, station, num_days)
 
 # --- APP TABS ---
-t_data, t_matrix, t_freq, t_bet = st.tabs(["📋 DỮ LIỆU", "🎯 MATRIX", "📊 TẦN SUẤT", "📈 BỆT CHẠM"])
+t_data, t_matrix, t_freq, t_tc3, t_tc4, t_multi, t_scan, t_bet = st.tabs([
+    "📋 DỮ LIỆU", "🎯 MATRIX", "📊 TẦN SUẤT 1", "� TỔNG & CHẠM 3", "🔢 TỔNG & CHẠM 4", "🌐 ĐA CHIỀU", "🔍 BỘ CHỌN/SCAN", "�📈 BỆT CHẠM"
+])
 
 with t_data:
     st.subheader(f"Kết quả xổ số: {station}")
@@ -188,9 +190,25 @@ with t_freq:
         st.dataframe(pd.DataFrame(freq_data), use_container_width=True)
     else: st.info("Không đủ dữ liệu.")
 
+with t_tc3:
+    st.subheader("📅 Thống kê Tổng & Chạm 3 Càng")
+    st.info("Tính năng đang được di trú từ bản Tkinter...")
+
+with t_tc4:
+    st.subheader("� Thống kê Tổng & Chạm 4 Càng")
+    st.info("Tính năng đang được di trú từ bản Tkinter...")
+
+with t_multi:
+    st.subheader("🌐 Phân tích Đa Chiều (Nhiều nguồn)")
+    st.info("Phân tích kết hợp từ Điện Toán + Thần Tài + XSMB...")
+
+with t_scan:
+    st.subheader("🔍 Bộ chọn & Scan thông minh")
+    st.info("Tạo dàn dựa trên Mức overlap của Chạm, Tổng, Trạm...")
+
 with t_bet:
     st.subheader("📈 Phân tích Bệt Chạm")
-    st.info("Phân tích bệt dựa trên dàn chọn thủ công hoặc top hot...")
+    st.info("Phân tích nhịp bệt chuyên sâu...")
 
 st.divider()
 st.caption(f"SieuGa Streamlit v2.5 | {datetime.now().strftime('%d/%m/%Y %H:%M')}")
