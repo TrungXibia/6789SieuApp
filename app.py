@@ -13,6 +13,10 @@ from src.processor import (
 # Set page config
 st.set_page_config(page_title="SieuGa Web - Cyber Dark", layout="wide", initial_sidebar_state="expanded")
 
+# Initialize Session State early
+if 'current_domain' not in st.session_state:
+    st.session_state.current_domain = API_MIRRORS[0]
+
 # --- CUSTOM CYBER DARK CSS ---
 st.markdown("""
 <style>

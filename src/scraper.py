@@ -16,15 +16,18 @@ if 'current_domain' not in st.session_state:
 
 def rotate_api_domain():
     try:
-        idx = API_MIRRORS.index(st.session_state.current_domain)
+        current_dom = getattr(st.session_state, 'current_domain', API_MIRRORS[0])
+        idx = API_MIRRORS.index(current_dom)
         st.session_state.current_domain = API_MIRRORS[(idx + 1) % len(API_MIRRORS)]
         logging.info(f"Switched API mirror to: {st.session_state.current_domain}")
     except: pass
 
 def get_mirrored_url(url):
+    # Safe access to session state
+    current_dom = getattr(st.session_state, 'current_domain', API_MIRRORS[0])
     for dom in API_MIRRORS:
         if dom in url:
-            return url.replace(dom, st.session_state.current_domain)
+            return url.replace(dom, current_dom)
     return url
 
 @st.cache_data(ttl=3600)
