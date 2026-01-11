@@ -117,11 +117,14 @@ with t_matrix:
         add_to_map(sel_bc, 'bc'); add_to_map(sel_cd, 'cd'); add_to_map(sel_de, 'de')
             
         if join_map:
-            # --- NOTES ---
-            with st.expander("📝 Chi tiết dàn nguồn (Note)", expanded=False):
-                for d, info in join_map.items():
-                    pos_list = [p.upper() for p in ['bc','cd','de'] if info[f'has_{p}']]
-                    st.markdown(f"**{d} ({'+'.join(pos_list)}):** {', '.join(info['combos'])}")
+            # --- NOTES (ALways visible) ---
+            st.write("📝 **Chi tiết dàn nguồn:**")
+            for d, info in join_map.items():
+                pos_list = [p.upper() for p in ['bc','cd','de'] if info[f'has_{p}']]
+                # Format the numbers list to be more readable
+                num_str = ", ".join(info['combos'])
+                if len(num_str) > 120: num_str = num_str[:120] + "..."
+                st.markdown(f"✅ **{d} ({'+'.join(pos_list)}):** {num_str}")
 
             lvl_data, _ = join_bc_cd_de(join_map)
             
