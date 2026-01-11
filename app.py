@@ -177,37 +177,43 @@ with t_freq:
     st.subheader("📊 Tần suất Rolling 7")
     f_data = calculate_frequencies(st.session_state.master_data[offset:], source_type)
     if f_data:
-        # Helper function for color coding
+        # Helper function for color coding - Softer Palette
         def get_digit_color(count):
-            if count == 0: return '#1a1a1a'
-            elif count <= 2: return '#1e3a8a'
-            elif count <= 4: return '#3b82f6'
-            elif count <= 6: return '#f97316'
-            else: return '#dc2626'
+            if count == 0: return '#1e293b' # Slate-800 (Dark/Neutral)
+            elif count <= 2: return '#334155' # Slate-700 (Slightly lighter)
+            elif count <= 4: return '#475569' # Slate-600
+            elif count <= 6: return '#ca8a04' # Yellow-600 (Darker Gold)
+            else: return '#b91c1c' # Red-700 (Darker Red)
         
         def get_pair_color(count):
-            if count == 0: return '#0f172a'
-            elif count <= 10: return '#1e293b'
-            elif count <= 20: return '#f97316'
-            else: return '#dc2626'
+            if count == 0: return '#1e293b' # Slate-800
+            elif count <= 10: return '#334155' # Slate-700
+            elif count <= 20: return '#ca8a04' # Yellow-600
+            else: return '#b91c1c' # Red-700
         
         # Table 1: Digit Frequency Matrix (0-9)
         st.write("### 🔢 Tần Suất Chạm (0-9)")
-        html = '<style>table.freq-table {width:100%; border-collapse: collapse; font-size:12px;} '
-        html += 'table.freq-table th, table.freq-table td {border:1px solid #334155; padding:4px; text-align:center;}</style>'
+        html = '<style>table.freq-table {width:100%; border-collapse: collapse; font-family: sans-serif;} '
+        html += 'table.freq-table th {background-color: #0f172a; color: #94a3b8; border:1px solid #334155; padding:8px; font-size:13px;}'
+        html += 'table.freq-table td {border:1px solid #334155; padding:6px; text-align:center; font-size:14px;}</style>'
         html += '<table class="freq-table"><tr><th>STT</th><th>Ngày</th><th>Kết Quả (ĐT/TT)</th>'
         for d in range(10):
             html += f'<th>{d}</th>'
         html += '<th>Top 2 Mức</th></tr>'
         
         for idx, row in enumerate(f_data[:10]):
-            html += f'<tr><td>{idx+1}</td><td>{row["date"]}</td><td style="font-size:10px;">{row["source"]}</td>'
+            html += f'<tr><td>{idx+1}</td><td>{row["date"]}</td><td style="font-size:12px; font-family: monospace;">{row["source"]}</td>'
             for d in range(10):
                 count = row['digit_stats'][str(d)]
                 color = get_digit_color(count)
-                html += f'<td style="background-color:{color}; color:white; font-weight:bold;">{count}</td>'
+                # Text color logic: White for dark backgrounds
+                text_color = '#e2e8f0' # Slate-200
+                font_weight = 'normal'
+                if count > 6: font_weight = 'bold'
+                
+                html += f'<td style="background-color:{color}; color:{text_color}; font-weight:{font_weight};">{count}</td>'
             top2 = ' | '.join([','.join(lv) for lv in row['digit_levels'][:2]])
-            html += f'<td style="font-size:10px;">{top2}</td></tr>'
+            html += f'<td style="font-size:12px;">{top2}</td></tr>'
         html += '</table>'
         st.markdown(html, unsafe_allow_html=True)
         
@@ -218,18 +224,31 @@ with t_freq:
         html2 = '<table class="freq-table"><tr><th>STT</th><th>Ngày</th><th>Kết Quả (ĐT/TT)</th>'
         for i in range(6):
             label = f"Về {i} lần" if i < 5 else "Về 5+ lần"
+            # Gradient header matching Tkinter concept roughly but softer
             html2 += f'<th>{label}</th>'
         html2 += '</tr>'
         
         for idx, row in enumerate(f_data[:10]):
-            html2 += f'<tr><td>{idx+1}</td><td>{row["date"]}</td><td style="font-size:10px;">{row["source"]}</td>'
+            html2 += f'<tr><td>{idx+1}</td><td>{row["date"]}</td><td style="font-size:12px; font-family: monospace;">{row["source"]}</td>'
             pc = row['pair_classification']
             for key in ['ve_0', 've_1', 've_2', 've_3', 've_4', 've_5plus']:
                 pairs = pc[key]
                 count = len(pairs)
                 color = get_pair_color(count)
-                pairs_str = ','.join(pairs) if len(pairs) <= 15 else f"{','.join(pairs[:15])}..."
-                html2 += f'<td style="background-color:{color}; color:#94a3b8; font-size:9px;">{pairs_str}<br/><span style="color:#facc15;">({count})</span></td>'
+                
+                # Limit visible pairs to reduce visual clutter
+                display_pairs = pairs
+                if len(pairs) > 10:
+                    display_pairs = pairs[:10]
+                    suffix = "..."
+                else:
+                    suffix = ""
+                
+                pairs_str = ','.join(display_pairs) + suffix
+                
+                html2 += f'<td style="background-color:{color}; color:#e2e8f0; vertical-align: top;">'
+                html2 += f'<div style="font-size:11px; line-height: 1.4; max-height: 80px; overflow-y: auto;">{pairs_str}</div>'
+                html2 += f'<div style="font-size:10px; color:#94a3b8; margin-top:4px;">SL: {count}</div></td>'
             html2 += '</tr>'
         html2 += '</table>'
         st.markdown(html2, unsafe_allow_html=True)
