@@ -236,15 +236,8 @@ with t_freq:
                 count = len(pairs)
                 color = get_pair_color(count)
                 
-                # Limit visible pairs to reduce visual clutter
-                display_pairs = pairs
-                if len(pairs) > 10:
-                    display_pairs = pairs[:10]
-                    suffix = "..."
-                else:
-                    suffix = ""
-                
-                pairs_str = ','.join(display_pairs) + suffix
+                # Show full list (no truncation)
+                pairs_str = ','.join(pairs)
                 
                 html2 += f'<td style="background-color:{color}; color:#e2e8f0; vertical-align: top;">'
                 html2 += f'<div style="font-size:11px; line-height: 1.4; max-height: 80px; overflow-y: auto;">{pairs_str}</div>'
