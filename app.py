@@ -224,17 +224,17 @@ with t_kybe:
             sum3_toks = [str((seqs[2][i] + seqs[3][i] + seqs[4][i]) % 10) for i in range(L)]
             sum5_toks = [str(sum(seqs[p][i] for p in range(5)) % 10) for i in range(L)]
             
-            c_main, c_side = st.columns([2, 1])
+            c_main, c_side = st.columns([3, 1], gap="small")
             
             with c_main:
                 st.write("### 📏 Kybe Grid (40 kỳ gần nhất)")
                 # Grid Header
-                grid_cols = st.columns([1.5] + [1]*20)
+                grid_cols = st.columns([1.8] + [1]*20, gap="small")
                 # Row 1-5: Positions
                 pos_labels = ["C.Ngàn", "Ngàn", "Trăm", "Chục", "Đơn vị", "Xì Tố", "Ngầu", "Tổng 3", "Tổng 5"]
                 
                 def render_row(label, data, color="#94a3b8", is_bold=True, p_idx=None):
-                    cols = st.columns([1.5] + [1]*20)
+                    cols = st.columns([1.8] + [1]*20, gap="small")
                     cols[0].write(f"**{label}**")
                     for i in range(min(len(data), 20)):
                         val = data[i]
@@ -261,7 +261,7 @@ with t_kybe:
                         cols[i+1].markdown(
                             f"<div style='background:{bg}; color:{color}; text-align:center; border:1px solid {border_color}; "
                             f"border-radius:4px; font-weight:{'bold' if is_bold else 'normal'}; font-family:Consolas, monospace; "
-                            f"font-size:14px; padding:2px 0;'>{val}</div>", 
+                            f"font-size:14px; padding:1px 0;'>{val}</div>", 
                             unsafe_allow_html=True
                         )
 
