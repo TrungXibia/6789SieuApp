@@ -117,19 +117,37 @@ with t_matrix:
         add_to_map(sel_bc, 'bc'); add_to_map(sel_cd, 'cd'); add_to_map(sel_de, 'de')
             
         if join_map:
-            lvl, max_f = join_bc_cd_de(join_map)
+            lvl_data, _ = join_bc_cd_de(join_map)
             with st.container():
                 st.write("---")
-                res_cols = st.columns(3)
-                for idx, (k, label) in enumerate([('4d','4D'),('3d','3D'),('2d','2D')]):
+                
+                # Determine visible columns
+                show_4d = len(sel_bc) > 0
+                show_3d = len(sel_bc) > 0 or len(sel_cd) > 0
+                show_2d = True # Always show 2D if anything selected
+                
+                cols_to_show = []
+                if show_4d: cols_to_show.append(('4d', '4D'))
+                if show_3d: cols_to_show.append(('3d', '3D'))
+                if show_2d: cols_to_show.append(('2d', '2D'))
+                
+                res_cols = st.columns(len(cols_to_show))
+                
+                for idx, (k, label) in enumerate(cols_to_show):
                     with res_cols[idx]:
                         st.write(f"**{label}**")
-                        # Show highest levels
-                        for l in range(max_f, max(0, max_f-1), -1):
-                            nums = sorted(list(lvl[l][k]))
-                            if nums: 
-                                st.caption(f"Mức {l} ({len(nums)} số):")
-                                st.code(", ".join(nums))
+                        # Find local max frequency for this key 'k'
+                        local_freqs = [f for f in lvl_data.keys() if lvl_data[f][k]]
+                        if local_freqs:
+                            m_max = max(local_freqs)
+                            # Show top 2 local levels
+                            for l in range(m_max, max(0, m_max-2), -1):
+                                nums = sorted(list(lvl_data[l][k]))
+                                if nums:
+                                    st.caption(f"Mức {l} ({len(nums)} số):")
+                                    st.code(", ".join(nums))
+                        else:
+                            st.caption("Không có số.")
                 st.write("---")
     
     m_data = []
