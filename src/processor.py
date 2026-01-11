@@ -22,10 +22,11 @@ def extract_numbers_from_data(row, source_type):
 
 def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28):
     """
-    Logic for Matrix: Future Hit Tracking (N1 = Today's Source).
-    Column Nk always refers to Source of index k-1 (N1 = index 0 = Today).
-    Cell (r_idx, k) is active only if r_idx > k - 1 (Result is older than Source).
-    This creates the 'Downward Hypotenuse' triangle with the black area on the TOP-LEFT.
+    Logic for Matrix: Future-Check mapping.
+    Column Nk for Row r_idx compares Result[r_idx] with Source[r_idx - k].
+    - Result r_idx is 'r_idx days ago'.
+    - Source (r_idx - k) is 'r_idx - k days ago' (newer than result).
+    This creates a Black Triangle on the TOP-LEFT (where r_idx < k).
     """
     if not data_source:
         return []
@@ -52,24 +53,22 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
             'source_combos': source_map.get(row['date'], set())
         })
 
-    # Prepare absolute source_list (newest first)
+    # source_list[0] is newest source (today)
     source_list = [source_map.get(r['date'], set()) for r in master_data]
 
     matrix_results = []
     for r_idx, r_data in enumerate(rows_data):
         row_hits = []
         for k in range(1, max_cols + 1):
-            s_idx = k - 1
+            # Mapping: Source Index = Result Index - Column Offset
+            s_idx = r_idx - k
             
-            # The Mapping: Check if 'Future Source' hits in 'Past Result'
-            # Row 0 (Today) has no future sources in this view.
-            # Row 1 (Yesterday) can be hit by N1 (Today's source).
-            if r_idx <= s_idx:
-                row_hits.append(None) # Top-Left Black Triangle (Source hasn't happened yet relative to Result)
+            if s_idx < 0:
+                row_hits.append(None) # Top-Left Black (Source hasn't happened yet)
                 continue
                 
             if s_idx >= len(source_list):
-                row_hits.append([]) # End of history
+                row_hits.append([]) # End of history (rare for this mapping)
                 continue
                 
             combos = source_list[s_idx]
@@ -80,8 +79,8 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
                     hits.append(val)
             row_hits.append(hits)
 
-        # Pending logic: If THE SOURCE OF THIS ROW ever hits in its own FUTURE
-        # Future relative to row `r_idx` are rows with indices `0, 1, ..., r_idx-1`
+        # Pending logic: If THE SOURCE OF THIS ROW hits in its relative future
+        # (rows with indices < r_idx)
         ever_hits_future = False
         this_source = r_data['source_combos']
         for fut_idx in range(r_idx):
@@ -202,7 +201,7 @@ def join_bc_cd_de(selected_map):
             total_3d.update(r3); total_4d.update(r4)
             
         if info['has_de']:
-            r2, r3, r4 = set(), set()
+            r2, r3, r4 = set(), set(), set()
             for de in combos:
                 r2.add(de)
                 for d in "0123456789": r3.add(d + de)
