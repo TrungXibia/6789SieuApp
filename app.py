@@ -237,7 +237,7 @@ with t_kybe:
                 table_style = """
                 <style>
                     .kybe-table { width: 100%; border-collapse: separate; border-spacing: 2px; font-family: 'Consolas', monospace; table-layout: fixed; }
-                    .kybe-table th, .kybe-table td { padding: 1px 2px; text-align: center; border-radius: 3px; font-size: 13px; }
+                    .kybe-table th, .kybe-table td { padding: 1px 2px; text-align: center; border-radius: 3px; font-size: 12px; }
                     .label-cell { text-align: left !important; font-weight: bold; color: #94a3b8; width: 80px; }
                     .data-cell { background: #1e293b; color: #f8fafc; border: 1px solid #334155; }
                     .gan-cell { background: #854d0e !important; color: #facc15 !important; border: 1px solid #facc15 !important; font-weight: bold; }
@@ -304,18 +304,18 @@ with t_kybe:
                 st.write("**Nhị hợp & Giao nhau:**")
                 for inter in nh_stats['intersections']:
                     if inter['common']:
-                        st.markdown(f"🔹 **{inter['label']}**: Có `{','.join(inter['common'])}`")
-                        with st.expander("Xem dàn chung"):
+                        lbl = inter['label'].replace("Lùi", "L")
+                        st.markdown(f"🔹 **{lbl}**: {','.join(inter['common'])}")
+                        with st.expander("Dàn chung"):
                             st.code(",".join(inter['dan']))
 
                 st.write("---")
                 # Bạc nhớ
                 bn_rows = [[seqs[p][i] for p in range(5)] for i in range(min(L, 40))]
                 p5t = get_bacnho_comb_preds(bn_rows, size=2)
-                pht = get_bacnho_comb_preds(bn_rows, size=2) # Adjust for Hậu Tứ if needed
-                st.write("**Bạc nhớ 5 Tinh:**")
+                pht = get_bacnho_comb_preds(bn_rows, size=2)
+                st.write("**5 Tinh / Hậu Tứ:**")
                 st.code(" | ".join(p5t))
-                st.write("**Bạc nhớ Hậu Tứ:**")
                 st.code(" | ".join(pht))
 
                 st.write("---")
@@ -325,9 +325,9 @@ with t_kybe:
                 ng_in = tp1.text_input("Ngầu:", "0,1", key="kybe_ng")
                 tg_in = tp2.text_input("Tổng:", "5,6", key="kybe_tg")
                 touch_res = get_kybe_touch_levels(set(ng_in.split(",")), set(tg_in.split(",")))
-                st.error(f"Mức 2: {','.join(touch_res['muc2'][:10])}...")
-                st.warning(f"Mức 1: {','.join(touch_res['muc1'][:10])}...")
-                st.success(f"Mức 0: {','.join(touch_res['muc0'][:10])}...")
+                st.error(f"M2: {','.join(touch_res['muc2'][:10])}")
+                st.warning(f"M1: {','.join(touch_res['muc1'][:10])}")
+                st.success(f"M0: {','.join(touch_res['muc0'][:10])}")
     else:
         st.info("Không đủ dữ liệu Kybe.")
 

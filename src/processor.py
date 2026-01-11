@@ -394,21 +394,27 @@ def get_frequency_matrix(seqs, top_n=5):
     intersections = []
     import itertools as it_tools
     for i in range(1, 4):
-        common = [d for d in taps[0] if d in taps[i]]
+        list1 = taps[i-1]
+        list2 = taps[i]
+        common = [d for d in list1 if d in list2]
         dan_chung = []
         if common:
-            # Create pairs for taps[0] (Cur)
-            pairs0 = list(it_tools.permutations(taps[0], 2))
-            dan0 = set("".join(map(str, p)) for p in pairs0 if p[0] in common or p[1] in common)
+            # Create pairs for list1
+            pairs1 = list(it_tools.permutations(list1, 2))
+            dan1 = set("".join(map(str, p)) for p in pairs1 if p[0] in common or p[1] in common)
             
-            # Create pairs for taps[i] (Lùi i)
-            pairs_i = list(it_tools.permutations(taps[i], 2))
-            dan_i = set("".join(map(str, p)) for p in pairs_i if p[0] in common or p[1] in common)
+            # Create pairs for list2
+            pairs2 = list(it_tools.permutations(list2, 2))
+            dan2 = set("".join(map(str, p)) for p in pairs2 if p[0] in common or p[1] in common)
             
             # Intersection of the two sets of pairs
-            dan_chung = sorted(list(dan0 & dan_i))
+            dan_chung = sorted(list(dan1 & dan2))
             
-        intersections.append({'label': f"Lùi {i}", 'common': common, 'dan': dan_chung})
+        intersections.append({
+            'label': f"Lùi {i}" if i == 1 else f"Lùi {i-1}-{i}", 
+            'common': common, 
+            'dan': dan_chung
+        })
         
     return {'mats': taps, 'intersections': intersections}
 
@@ -420,8 +426,6 @@ def get_bacnho_comb_preds(bn_rows, size=2, n_results=3):
     if not bn_rows or len(bn_rows) < 2: return []
     import itertools
     latest = bn_rows[0]
-    # Use only specific positions if it's Hậu Tứ (3,4) or 5 Tinh (all)
-    # This simplified version uses top combos
     current_set = set(latest)
     combs = list(itertools.combinations(sorted(list(current_set)), size))
     
@@ -433,11 +437,11 @@ def get_bacnho_comb_preds(bn_rows, size=2, n_results=3):
             if c_set.issubset(h_digits):
                 # What appeared in the NEXT period (j-1)
                 next_res = bn_rows[j-1]
-                for next_c in itertools.combinations(sorted(next_res), 2):
-                    future_counts["".join(map(str, next_c))] += 1
+                for next_c in itertools.combinations(sorted(next_res), size):
+                    future_counts[next_c] += 1
                     
     top = sorted(future_counts.items(), key=lambda x: (-x[1], x[0]))[:n_results]
-    return [x[0] for x in top]
+    return [",".join(map(str, x[0])) for x in top]
 
 def compute_kybe_cycles(working_data, combos):
     """
