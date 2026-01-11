@@ -127,6 +127,7 @@ with t_matrix:
                 st.markdown(f"✅ **{d} ({'+'.join(pos_list)}):** {num_str}")
 
             lvl_data, _ = join_bc_cd_de(join_map)
+            num_dates = len(join_map)
             
             st.write("---")
             show_4d = len(sel_bc) > 0
@@ -144,22 +145,18 @@ with t_matrix:
                 with res_cols[idx]:
                     with st.container(border=True):
                         st.write(f"**{label}**")
-                        # Find local max frequency
-                        local_freqs = sorted([f for f in lvl_data.keys() if lvl_data[f][k]], reverse=True)
-                        if local_freqs:
-                            # Show ALL levels from local max down to 0
-                            m_max = local_freqs[0]
-                            for l in range(m_max, -1, -1):
-                                nums = sorted(list(lvl_data[l][k]))
-                                if nums:
-                                    st.caption(f"Mức {l} ({len(nums)} số):")
-                                    # For Mức 0, truncate view if too many numbers
-                                    if l == 0 and len(nums) > 100:
-                                        st.code(", ".join(nums[:50]) + f" ... (+{len(nums)-50} số)")
-                                    else:
-                                        st.code(", ".join(nums))
-                        else:
-                            st.caption("Không có số.")
+                        # Show potential levels from num_dates down to 0
+                        for l in range(num_dates, -1, -1):
+                            nums = sorted(list(lvl_data[l][k]))
+                            if nums:
+                                st.caption(f"Mức {l} ({len(nums)} số):")
+                                if l == 0 and len(nums) > 100:
+                                    st.code(", ".join(nums[:50]) + f" ... (+{len(nums)-50} số)")
+                                else:
+                                    st.code(", ".join(nums))
+                            elif l > 0: # Only show empty levels for l > 0 to save space
+                                st.caption(f"Mức {l} (0 số):")
+                                st.code("—")
             st.write("---")
     
     m_data = []
