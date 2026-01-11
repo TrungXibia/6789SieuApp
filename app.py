@@ -78,8 +78,8 @@ if not st.session_state.data_ready or 'last_config' not in st.session_state or s
         st.session_state.data_ready = True; st.session_state.last_config = (region, station, num_days)
 
 # --- APP TABS ---
-t_data, t_matrix, t_freq, t_tc3, t_tc4, t_multi, t_scan, t_bet, t_kybe = st.tabs([
-    "📋 DỮ LIỆU", "🎯 MATRIX", "📊 TẦN SUẤT 1", "📅 TỔNG & CHẠM 3", "🔢 TỔNG & CHẠM 4", "🌐 ĐA CHIỀU", "🔍 BỘ CHỌN/SCAN", "📈 BỆT CHẠM", "🧠 KYBE - GROK"
+t_data, t_matrix, t_freq, t_tc3, t_tc4, t_bet, t_kybe = st.tabs([
+    "📋 DỮ LIỆU", "🎯 MATRIX", "📊 TẦN SUẤT 1", "📅 TỔNG & CHẠM 3", "🔢 TỔNG & CHẠM 4", "📈 BỆT CHẠM", "🧠 KYBE - GROK"
 ])
 
 with t_data:
@@ -174,27 +174,6 @@ with t_tc4:
         df = pd.DataFrame([{'Ngày': r['date'], 'GĐB': r['result'], **{f"G{i}": r['cham_gaps'][str(i)] for i in range(10)}} for r in stats])
         st.dataframe(df.head(20), use_container_width=True)
 
-with t_multi:
-    st.subheader("🌐 Phân tích Đa Chiều")
-    if st.session_state.master_data:
-        row = st.session_state.master_data[offset]
-        st.info(f"Nguồn ngày {row['date']}")
-        d, p, _ = extract_numbers_from_data(row, "Cả 2 (ĐT+TT)")
-        st.write(f"**Chạm:** {', '.join(d)} | **Cặp:** {', '.join(p)}")
-
-with t_scan:
-    st.subheader("🔍 Bộ chọn & Scan")
-    c1, c2 = st.columns(2)
-    sc = c1.multiselect("Chạm:", [str(i) for i in range(10)])
-    st_val = c2.multiselect("Tổng:", [str(i) for i in range(10)])
-    if st.button("🚀 SCAN"):
-        combos = [a+b for a in (sc or "0123456789") for b in (sc or "0123456789") if (not st_val) or (str((int(a)+int(b))%10) in st_val)]
-        st.session_state.scan_res = join_bc_cd_de({"S": {"has_bc":True,"has_cd":True,"has_de":True,"combos":combos}})
-    if 'scan_res' in st.session_state:
-        lvl, max_f = st.session_state.scan_res
-        for k in ['2d','3d','4d']:
-            nums = sorted(list(lvl[max_f][k]))
-            if nums: st.write(f"**{k.upper()} Mức {max_f}:**"); st.code(", ".join(nums))
 
 with t_bet:
     st.subheader("📈 Phân tích Bệt Thẳng & Nhị hợp")
