@@ -171,7 +171,7 @@ with t_multi:
     if st.session_state.master_data:
         row = st.session_state.master_data[offset]
         st.info(f"Nguồn ngày {row['date']}")
-        d, p = extract_numbers_from_data(row, "Cả 2 (ĐT+TT)")
+        d, p, _ = extract_numbers_from_data(row, "Cả 2 (ĐT+TT)")
         st.write(f"**Chạm:** {', '.join(d)} | **Cặp:** {', '.join(p)}")
 
 with t_scan:

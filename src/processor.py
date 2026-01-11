@@ -121,7 +121,7 @@ def calculate_frequencies(data_source, source_type="Cả 2 (ĐT+TT)", window_siz
         total_digits = []
         total_pairs = []
         for row in window:
-            d, p = extract_numbers_from_data(row, source_type)
+            d, p, _ = extract_numbers_from_data(row, source_type)
             total_digits.extend(d)
             total_pairs.extend(p)
             
