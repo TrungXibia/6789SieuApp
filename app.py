@@ -390,9 +390,27 @@ with t_kybe:
             with qa3:
                 # Touch Pattern
                 st.info("**Touch Pattern**")
+                
+                # Prepare data for buttons
+                cur_ng = ng_toks[0] if ng_toks else ""
+                cur_s3 = sum3_toks[0] if sum3_toks else ""
+                cur_s5 = sum5_toks[0] if sum5_toks else ""
+                
+                # UI for picking
+                cols_btn = st.columns(3)
+                if cols_btn[0].button(f"Lấy Ngầu ({cur_ng})"):
+                    st.session_state.kybe_ng = str(cur_ng)
+                if cols_btn[1].button(f"Lấy T3 ({cur_s3})"):
+                    st.session_state.kybe_tg = str(cur_s3)
+                if cols_btn[2].button(f"Lấy T5 ({cur_s5})"):
+                    st.session_state.kybe_tg = str(cur_s5)
+                
                 tp_in_cols = st.columns(2)
                 ng_in = tp_in_cols[0].text_input("Ngầu:", "0,1", key="kybe_ng")
                 tg_in = tp_in_cols[1].text_input("Tổng:", "5,6", key="kybe_tg")
+                
+                st.caption("ℹ️ *Bảng trên không bấm được, dùng nút để lấy số mới nhất.*")
+                
                 touch_res = get_kybe_touch_levels(set(ng_in.split(",")), set(tg_in.split(",")))
                 st.caption(f"M2: {','.join(touch_res['muc2'][:10])}")
                 st.caption(f"M1: {','.join(touch_res['muc1'][:10])}")
