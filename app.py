@@ -141,17 +141,28 @@ with t_matrix:
     def style_matrix(df):
         styles = pd.DataFrame('', index=df.index, columns=df.columns)
         
-        # 1. Background for Pending rows (Orange)
+        # Default for the content cells: Dark slate/blue-gray
+        styles.iloc[:, 2:] = 'background-color: #1e293b; color: #94a3b8;'
+
         for i, r in enumerate(matrix_res):
+            # 1. Background for Pending rows (Source hasn't hit yet) -> Dark Orange
             if r['pending']:
-                styles.iloc[i, :] = 'background-color: #92400e; color: #fef3c7;' # Dark Orange
-                
-        # 2. Background for Hits (Red)
-        for i, r in enumerate(matrix_res):
+                styles.iloc[i, :2] = 'background-color: #92400e; color: #fef3c7;'
+            
             for j, hit_val in enumerate(r['hits']):
-                if hit_val:
-                    styles.iloc[i, j + 2] = 'background-color: #ef4444; color: white; font-weight: bold;'
-        
+                col_idx = j + 2
+                if hit_val is None:
+                    # Trapped in the "Future Triangle" -> Black
+                    styles.iloc[i, col_idx] = 'background-color: #000000; color: #000000;'
+                elif hit_val:
+                    # HIT! -> Bright Red
+                    styles.iloc[i, col_idx] = 'background-color: #ef4444; color: #ffffff; font-weight: bold;'
+                else:
+                    # Normal cell (No hit) -> Already handled by default, or refine if pending
+                    if r['pending'] and col_idx == (i + 2):
+                        # The diagonal cell of a pending row
+                        styles.iloc[i, col_idx] = 'background-color: #92400e; color: #fef3c7; border: 1px solid #f59e0b;'
+
         return styles
 
     st.dataframe(df_matrix.style.apply(style_matrix, axis=None), use_container_width=True, height=600)
