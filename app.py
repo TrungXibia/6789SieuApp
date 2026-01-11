@@ -324,19 +324,7 @@ with t_kybe:
                 
                 st.markdown(table_style + html, unsafe_allow_html=True)
                 
-                st.divider()
-                st.write("### 🔢 Chu kỳ Bộ 3 & Bộ 4")
-                last5 = [seqs[p][0] for p in range(5)]
-                import itertools
-                combos3 = list(itertools.combinations(last5, 3))
-                combos4 = list(itertools.combinations(last5, 4))
-                digsets = [set(str(seqs[p][j]) for p in range(5)) for j in range(L)]
-                cyc_res = compute_kybe_cycles(digsets, combos3 + combos4)
-                
-                df_cyc = pd.DataFrame(cyc_res)
-                if not df_cyc.empty:
-                    df_cyc = df_cyc.head(15)
-                    st.table(df_cyc[['tok', 'cyc', 'miss', 'due', 'occ']])
+                # Chu kỳ Bộ 3 & Bộ 4 removed as requested
             
             with c_side:
                 st.write("### 📈 Phân tích nhanh")
@@ -347,49 +335,8 @@ with t_kybe:
                 for sig in tx_stats['signals']: st.warning(sig)
                 
                 st.write("---")
-                # Nhị hợp Giao nhau
-                nh_stats = get_frequency_matrix(seqs)
-                st.write("**Nhị hợp & Giao nhau:**")
-                
-                # Display all 4 rows matching Tkinter original
-                tops = nh_stats['tops']
-                intersections = nh_stats['intersections']
-                
-                # Row 1: Hiện tại
-                inter0 = intersections[0]
-                if inter0['common']:
-                    st.markdown(f"🔹 **Hiện tại**: {','.join(tops[0])} > cùng có {inter0['label']} số {','.join(inter0['common'])}")
-                    with st.expander(f"Chi tiết {inter0['label']}"):
-                        st.code(f"Dàn: {','.join(inter0['dan1'])}")
-                        st.code(f"Dàn {inter0['label']}: {','.join(inter0['dan2'])}")
-                        st.code(f"Dàn chung: {','.join(inter0['dan_chung'])}")
-                else:
-                    st.markdown(f"🔹 **Hiện tại**: {','.join(tops[0])}")
-                
-                # Row 2: Lùi 1
-                inter1 = intersections[1]
-                if inter1['common']:
-                    st.markdown(f"🔹 **Lùi 1**: {','.join(tops[1])} > cùng có {inter1['label']} số {','.join(inter1['common'])}")
-                    with st.expander(f"Chi tiết {inter1['label']}"):
-                        st.code(f"Dàn: {','.join(inter1['dan1'])}")
-                        st.code(f"Dàn {inter1['label']}: {','.join(inter1['dan2'])}")
-                        st.code(f"Dàn chung: {','.join(inter1['dan_chung'])}")
-                else:
-                    st.markdown(f"🔹 **Lùi 1**: {','.join(tops[1])}")
-                
-                # Row 3: Lùi 2
-                inter2 = intersections[2]
-                if inter2['common']:
-                    st.markdown(f"🔹 **Lùi 2**: {','.join(tops[2])} > cùng có {inter2['label']} số {','.join(inter2['common'])}")
-                    with st.expander(f"Chi tiết {inter2['label']}"):
-                        st.code(f"Dàn: {','.join(inter2['dan1'])}")
-                        st.code(f"Dàn {inter2['label']}: {','.join(inter2['dan2'])}")
-                        st.code(f"Dàn chung: {','.join(inter2['dan_chung'])}")
-                else:
-                    st.markdown(f"🔹 **Lùi 2**: {','.join(tops[2])}")
-                
-                # Row 4: Lùi 3
-                st.markdown(f"🔹 **Lùi 3**: {','.join(tops[3])}")
+                # Nhị hợp moved to bottom
+                pass
 
                 st.write("---")
                 # Bạc nhớ
@@ -410,6 +357,44 @@ with t_kybe:
                 st.error(f"M2: {','.join(touch_res['muc2'][:10])}")
                 st.warning(f"M1: {','.join(touch_res['muc1'][:10])}")
                 st.success(f"M0: {','.join(touch_res['muc0'][:10])}")
+
+            st.divider()
+            # Nhị hợp Giao nhau - Full Width Section
+            nh_stats = get_frequency_matrix(seqs)
+            st.write("### 🔗 Nhị hợp & Giao nhau")
+            
+            tops = nh_stats['tops']
+            intersections = nh_stats['intersections']
+            
+            nc1, nc2, nc3, nc4 = st.columns(4)
+            
+            # Helper to display details
+            def display_nh_details(col, title, top_digits, intersection):
+                with col:
+                    st.info(f"**{title}**")
+                    st.write(f"Top: `{','.join(top_digits)}`")
+                    if intersection and intersection['common']:
+                        st.write(f"Cùng {intersection['label']}: `{','.join(intersection['common'])}`")
+                        st.text_area("Dàn:", value=','.join(intersection['dan1']), height=70, disabled=True)
+                        st.text_area(f"Dàn {intersection['label']}:", value=','.join(intersection['dan2']), height=70, disabled=True)
+                        st.text_area("Dàn chung:", value=','.join(intersection['dan_chung']), height=70, disabled=True)
+                    else:
+                        st.caption("Không có giao nhau.")
+
+            # Row 1: Hiện tại (vs Lùi 1)
+            display_nh_details(nc1, "Hiện tại", tops[0], intersections[0])
+            
+            # Row 2: Lùi 1 (vs Lùi 2)
+            display_nh_details(nc2, "Lùi 1", tops[1], intersections[1])
+            
+            # Row 3: Lùi 2 (vs Lùi 3)
+            display_nh_details(nc3, "Lùi 2", tops[2], intersections[2])
+            
+            # Row 4: Lùi 3
+            with nc4:
+                st.info("**Lùi 3**")
+                st.write(f"Top: `{','.join(tops[3])}`")
+                st.caption("(Hết)")
     else:
         st.info("Không đủ dữ liệu Kybe.")
 
