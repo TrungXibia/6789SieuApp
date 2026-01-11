@@ -22,30 +22,33 @@ def extract_numbers_from_data(row, source_type):
 
 def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28):
     """
-    Logic for Matrix: Future-Check mapping.
-    Column Nk for Row r_idx compares Result[r_idx] with Source[r_idx - k].
-    - Result r_idx is 'r_idx days ago'.
-    - Source (r_idx - k) is 'r_idx - k days ago' (newer than result).
-    This creates a Black Triangle on the TOP-LEFT (where r_idx < k).
+    Logic for Matrix tracking: Matches Tkinter legacy app.
+    - Each row (r_idx) is a Source Date.
+    - Column Nk (k=1..28) is the Result Date at offset k-1 days after the source.
+    - Mapping: target_idx = r_idx - k + 1.
+    - If target_idx < 0: result hasn't happened yet (Top-Left Black Area).
+    - Pending (Orange): If the source hasn't appeared in any FUTURE result (idx < r_idx).
     """
     if not data_source:
         return []
 
-    # Map master_data for lookup
+    # Map master_data for source lookup
     source_map = {}
     for row in master_data:
         d, p = extract_numbers_from_data(row, source_type)
         source_map[row['date']] = set(p)
 
-    rows_data = [] # Newest results first (Row 0 = Today)
+    # Prepare historical results for check
+    rows_data = [] # Newest first (idx 0 = newest)
     for row in data_source:
-        it = []
-        if 'xsmb_full' in row:
-            db = row['xsmb_full']
-            it.append({'db': db, 'bc': db[-4:-2], 'cd': db[-3:-1], 'de': db[-2:]})
-        elif 'all_prizes' in row:
-            db = str(row['all_prizes'][0]) if row['all_prizes'] else ""
-            it.append({'db': db, 'bc': db[-4:-2] if len(db)>=4 else '', 'cd': db[-3:-1] if len(db)>=3 else '', 'de': db[-2:] if len(db)>=2 else ''})
+        db = ""
+        if 'xsmb_full' in row: db = row['xsmb_full']
+        elif 'all_prizes' in row: db = str(row['all_prizes'][0]) if row['all_prizes'] else ""
+        
+        # Slicing rules (Tkinter matches)
+        it = [{'db': db, 'bc': db[-4:-2] if len(db)>=4 else "", 
+               'cd': db[-3:-1] if len(db)>=3 else "", 
+               'de': db[-2:] if len(db)>=2 else ""}]
         
         rows_data.append({
             'date': row['date'],
@@ -53,50 +56,48 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
             'source_combos': source_map.get(row['date'], set())
         })
 
-    # source_list[0] is newest source (today)
-    source_list = [source_map.get(r['date'], set()) for r in master_data]
-
     matrix_results = []
     for r_idx, r_data in enumerate(rows_data):
         row_hits = []
+        combos_set = r_data['source_combos']
+        
         for k in range(1, max_cols + 1):
-            # Mapping: Source Index = Result Index - Column Offset
-            s_idx = r_idx - k
+            # Target Result Index = r_idx - (k - 1)
+            # This looks 'down' from the source to the results of newer days.
+            t_idx = r_idx - k + 1
             
-            if s_idx < 0:
-                row_hits.append(None) # Top-Left Black (Source hasn't happened yet)
+            if t_idx < 0:
+                row_hits.append(None) # Top-Left Black (Future Result doesn't exist yet)
                 continue
                 
-            if s_idx >= len(source_list):
-                row_hits.append([]) # End of history (rare for this mapping)
+            if t_idx >= len(rows_data):
+                row_hits.append([]) # End of history
                 continue
                 
-            combos = source_list[s_idx]
+            target_res_row = rows_data[t_idx]
             hits = []
-            for item in r_data['items']:
+            for item in target_res_row['items']:
                 val = item.get(pos_type.lower())
-                if val and val in combos:
+                if val and val in combos_set:
                     hits.append(val)
             row_hits.append(hits)
 
-        # Pending logic: If THE SOURCE OF THIS ROW hits in its relative future
-        # (rows with indices < r_idx)
-        ever_hits_future = False
-        this_source = r_data['source_combos']
+        # Pending logic: If source hasn't appeared in any day NEWER than today (relative future)
+        # Newest days are index 0...r_idx-1
+        has_hit_future = False
         for fut_idx in range(r_idx):
             fut_row = rows_data[fut_idx]
             for it in fut_row['items']:
-                if it.get(pos_type.lower()) in this_source:
-                    ever_hits_future = True
-                    break
-            if ever_hits_future: break
+                if it.get(pos_type.lower()) in combos_set:
+                    has_hit_future = True; break
+            if has_hit_future: break
 
         matrix_results.append({
             'date': r_data['date'],
             'items': r_data['items'],
             'hits': row_hits,
-            'pending': not ever_hits_future and len(this_source) > 0,
-            'combos': list(this_source)
+            'pending': not has_hit_future and len(combos_set) > 0,
+            'combos': list(combos_set)
         })
     return matrix_results
 
@@ -143,34 +144,80 @@ def calculate_frequencies(data_source, source_type="Cả 2 (ĐT+TT)", window_siz
 
 def analyze_bet_cham(results_list, n_digits=2):
     """
-    Analyze levels and suggestions for a list of predicted numbers.
+    Ported from SieuGaApp_Tkinter: Bệt Thẳng & Nhị hợp logic.
+    - Finds 'Bệt Thẳng' by comparing GĐB_i with GĐB_{i-1} position by position (0-5).
+    - Generates 'Nhị hợp' sets combining Bệt digits with all digits from both days.
     """
-    # If dicts passed, extract last 2 digits (DE)
-    clean_list = []
+    if not results_list or len(results_list) < 2:
+        return {'levels': {}, 'top_chams': [], 'top_tongs': [], 'recent_bets': []}
+
+    # Normalize results (Newest first)
+    raw_vals = []
     for item in results_list:
         if isinstance(item, dict):
-            val = item.get('xsmb_full') or (str(item['all_prizes'][0]) if 'all_prizes' in item else "")
-            if val: clean_list.append(val[-2:])
+            val = item.get('xsmb_full') or item.get('db') or (str(item['all_prizes'][0]) if 'all_prizes' in item else "")
+            raw_vals.append(val)
         else:
-            clean_list.append(str(item))
-            
-    counter = Counter(clean_list)
-    max_c = max(counter.values()) if counter else 0
-    levels = {m: sorted([n for n, c in counter.items() if c == m]) for m in range(max_c, 0, -1)}
+            raw_vals.append(str(item))
+
+    # Reverse to chronological order for analysis
+    chrono_vals = list(reversed(raw_vals))
+    recent_bets = []
     
-    # Simple Chạm/Tổng hot stats
+    # Loop from 1 to latest (Newest is last in chronological list)
+    # We analyze up to the last 30 days of bệt history
+    start_idx = max(1, len(chrono_vals) - 30)
+    for i in range(start_idx, len(chrono_vals)):
+        curr = chrono_vals[i]
+        prev = chrono_vals[i-1]
+        if len(curr) < 4 or len(prev) < 4: continue
+
+        # Pad to 6 digits for alignment (MN/MT/MB mixed)
+        c_digits = list(curr)
+        while len(c_digits) < 6: c_digits.insert(0, "")
+        p_digits = list(prev)
+        while len(p_digits) < 6: p_digits.insert(0, "")
+
+        # Find Bệt Thẳng: Same digit at the same position
+        bets = []
+        for j in range(6):
+            if c_digits[j] != "" and c_digits[j] == p_digits[j]:
+                bets.append(c_digits[j])
+
+        if bets:
+            # Nhị hợp logic: Get all unique digits from both GĐBs
+            rep_digits = set(d for d in curr if d.isdigit())
+            rep_digits.update(d for d in prev if d.isdigit())
+            
+            dan_list = []
+            for b_digit in bets:
+                for d in rep_digits:
+                    # Create pairs with the bệt digit
+                    p1, p2 = f"{b_digit}{d}", f"{d}{b_digit}"
+                    if p1 not in dan_list: dan_list.append(p1)
+                    if p2 not in dan_list: dan_list.append(p2)
+            
+            recent_bets.append({
+                'date_idx': i,
+                'bets': bets,
+                'dan': sorted(dan_list),
+                'count': len(dan_list)
+            })
+
+    # Basic stats for UI compatibility (Freq of DE)
     chams = Counter()
     tongs = Counter()
-    for n in clean_list:
-        if len(n) == 2 and n.isdigit():
-            chams[n[0]] += 1
-            chams[n[1]] += 1
-            tongs[str((int(n[0]) + int(n[1])) % 10)] += 1
+    for n in raw_vals:
+        de = n[-2:]
+        if len(de) == 2 and de.isdigit():
+            chams[de[0]] += 1; chams[de[1]] += 1
+            tongs[str((int(de[0]) + int(de[1])) % 10)] += 1
             
     return {
-        'levels': levels,
-        'top_chams': sorted(chams.items(), key=lambda x: x[1], reverse=True)[:3],
-        'top_tongs': sorted(tongs.items(), key=lambda x: x[1], reverse=True)[:3]
+        'levels': {}, # Deprecated for this context
+        'top_chams': sorted(chams.items(), key=lambda x: x[1], reverse=True)[:5],
+        'top_tongs': sorted(tongs.items(), key=lambda x: x[1], reverse=True)[:5],
+        'recent_bets': recent_bets[::-1] # Newest first for web display
     }
 
 def join_bc_cd_de(selected_map):

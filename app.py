@@ -181,11 +181,28 @@ with t_scan:
             if nums: st.write(f"**{k.upper()} Mức {max_f}:**"); st.code(", ".join(nums))
 
 with t_bet:
-    st.subheader("📈 Phân tích Bệt")
-    ana = analyze_bet_cham(st.session_state.target_data[offset:offset+30])
-    st.write("**Top Chạm gánh:** " + " | ".join([f"{k}({v})" for k, v in ana['top_chams']]))
-    for m in range(max(ana['levels'].keys()), 0, -1):
-        st.write(f"Mức {m}: {', '.join(ana['levels'][m])}")
+    st.subheader("📈 Phân tích Bệt Thẳng & Nhị hợp")
+    ana = analyze_bet_cham(st.session_state.target_data[offset:])
+    
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        st.write("**Top Chạm gánh:**")
+        for k, v in ana['top_chams']:
+            st.write(f"- Chạm {k}: {v} lần")
+    with c2:
+        st.write("**Top Tổng gánh:**")
+        cols = st.columns(5)
+        for i, (k, v) in enumerate(ana['top_tongs']):
+            cols[i].metric(f"Tổng {k}", v)
+
+    st.write("---")
+    st.write("### 💎 Dàn Bệt & Nhị hợp mới nhất")
+    if ana.get('recent_bets'):
+        for bet in ana['recent_bets'][:5]: # Show top 5 recent
+            with st.expander(f"🎲 Bệt: {', '.join(bet['bets'])} ({bet['count']} số)"):
+                st.code(", ".join(bet['dan']))
+    else:
+        st.info("Chưa phát hiện tín hiệu Bệt Thẳng trong 30 ngày gần đây.")
 
 st.divider()
 st.caption(f"SieuGa Streamlit v3.0 | {datetime.now().strftime('%d/%m/%Y %H:%M')}")
