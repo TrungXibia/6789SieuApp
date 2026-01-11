@@ -396,6 +396,7 @@ def calculate_taixiu_stats(seqs, dates):
 def get_frequency_matrix(seqs, top_n=5):
     """
     Nhị hợp & Giao nhau: Frequency calculation for 4 offsets.
+    Returns complete data matching Tkinter original implementation.
     """
     L = len(seqs[0])
     import itertools
@@ -418,38 +419,57 @@ def get_frequency_matrix(seqs, top_n=5):
             return cnt
         except: return Counter()
 
-    c_mats = [get_cnt(i) for i in range(4)] # Cur, P1, P2, P3
-    taps = []
-    for c in c_mats:
-        taps.append([d for d, _ in sorted(c.items(), key=lambda x: (-x[1], x[0]))[:top_n]])
+    # Get counters for 4 offsets
+    c_cur = get_cnt(0)
+    c_p1 = get_cnt(1)
+    c_p2 = get_cnt(2)
+    c_p3 = get_cnt(3)
     
-    # Find Intersections (Giao nhau)
-    intersections = []
-    import itertools as it_tools
-    for i in range(1, 4):
-        list1 = taps[i-1]
-        list2 = taps[i]
+    # Get top N for each
+    def get_top(cnt):
+        return [d for d, _ in sorted(cnt.items(), key=lambda x: (-x[1], x[0]))[:top_n]]
+    
+    t_cur = get_top(c_cur)
+    t_p1 = get_top(c_p1)
+    t_p2 = get_top(c_p2)
+    t_p3 = get_top(c_p3)
+    
+    # Find Intersections (Giao nhau) with complete information
+    def get_common_full(list1, list2, label):
         common = [d for d in list1 if d in list2]
-        dan_chung = []
-        if common:
-            # Create pairs for list1
-            pairs1 = list(it_tools.permutations(list1, 2))
-            dan1 = set("".join(map(str, p)) for p in pairs1 if p[0] in common or p[1] in common)
-            
-            # Create pairs for list2
-            pairs2 = list(it_tools.permutations(list2, 2))
-            dan2 = set("".join(map(str, p)) for p in pairs2 if p[0] in common or p[1] in common)
-            
-            # Intersection of the two sets of pairs
-            dan_chung = sorted(list(dan1 & dan2))
-            
-        intersections.append({
-            'label': f"Lùi {i}" if i == 1 else f"Lùi {i-1}-{i}", 
-            'common': common, 
-            'dan': dan_chung
-        })
+        dan1_list, dan2_list, dan_chung_list = [], [], []
         
-    return {'mats': taps, 'intersections': intersections}
+        if common:
+            def generate_dan(digits, common_digits):
+                pairs = list(itertools.permutations(digits, 2))
+                filtered = []
+                for p in pairs:
+                    if p[0] in common_digits or p[1] in common_digits:
+                        filtered.append("".join(p))
+                return filtered
+            
+            dan1_list = generate_dan(list1, common)
+            dan2_list = generate_dan(list2, common)
+            dan_chung_list = sorted(list(set(dan1_list) & set(dan2_list)))
+        
+        return {
+            'label': label,
+            'common': common,
+            'dan1': dan1_list,
+            'dan2': dan2_list,
+            'dan_chung': dan_chung_list
+        }
+    
+    intersections = [
+        get_common_full(t_cur, t_p1, "Lùi 1"),
+        get_common_full(t_p1, t_p2, "Lùi 2"),
+        get_common_full(t_p2, t_p3, "Lùi 3")
+    ]
+    
+    return {
+        'tops': [t_cur, t_p1, t_p2, t_p3],
+        'intersections': intersections
+    }
 
 def get_bacnho_comb_preds(bn_rows, size=2, n_results=3):
     """

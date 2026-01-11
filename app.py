@@ -290,12 +290,46 @@ with t_kybe:
                 # Nhị hợp Giao nhau
                 nh_stats = get_frequency_matrix(seqs)
                 st.write("**Nhị hợp & Giao nhau:**")
-                for inter in nh_stats['intersections']:
-                    if inter['common']:
-                        lbl = inter['label'].replace("Lùi", "L")
-                        st.markdown(f"🔹 **{lbl}**: {','.join(inter['common'])}")
-                        with st.expander("Dàn chung"):
-                            st.code(",".join(inter['dan']))
+                
+                # Display all 4 rows matching Tkinter original
+                tops = nh_stats['tops']
+                intersections = nh_stats['intersections']
+                
+                # Row 1: Hiện tại
+                inter0 = intersections[0]
+                if inter0['common']:
+                    st.markdown(f"🔹 **Hiện tại**: {','.join(tops[0])} > cùng có {inter0['label']} số {','.join(inter0['common'])}")
+                    with st.expander(f"Chi tiết {inter0['label']}"):
+                        st.code(f"Dàn: {','.join(inter0['dan1'])}")
+                        st.code(f"Dàn {inter0['label']}: {','.join(inter0['dan2'])}")
+                        st.code(f"Dàn chung: {','.join(inter0['dan_chung'])}")
+                else:
+                    st.markdown(f"🔹 **Hiện tại**: {','.join(tops[0])}")
+                
+                # Row 2: Lùi 1
+                inter1 = intersections[1]
+                if inter1['common']:
+                    st.markdown(f"🔹 **Lùi 1**: {','.join(tops[1])} > cùng có {inter1['label']} số {','.join(inter1['common'])}")
+                    with st.expander(f"Chi tiết {inter1['label']}"):
+                        st.code(f"Dàn: {','.join(inter1['dan1'])}")
+                        st.code(f"Dàn {inter1['label']}: {','.join(inter1['dan2'])}")
+                        st.code(f"Dàn chung: {','.join(inter1['dan_chung'])}")
+                else:
+                    st.markdown(f"🔹 **Lùi 1**: {','.join(tops[1])}")
+                
+                # Row 3: Lùi 2
+                inter2 = intersections[2]
+                if inter2['common']:
+                    st.markdown(f"🔹 **Lùi 2**: {','.join(tops[2])} > cùng có {inter2['label']} số {','.join(inter2['common'])}")
+                    with st.expander(f"Chi tiết {inter2['label']}"):
+                        st.code(f"Dàn: {','.join(inter2['dan1'])}")
+                        st.code(f"Dàn {inter2['label']}: {','.join(inter2['dan2'])}")
+                        st.code(f"Dàn chung: {','.join(inter2['dan_chung'])}")
+                else:
+                    st.markdown(f"🔹 **Lùi 2**: {','.join(tops[2])}")
+                
+                # Row 4: Lùi 3
+                st.markdown(f"🔹 **Lùi 3**: {','.join(tops[3])}")
 
                 st.write("---")
                 # Bạc nhớ
