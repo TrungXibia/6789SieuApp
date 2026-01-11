@@ -98,39 +98,39 @@ with t_matrix:
         pending_dates = [r['date'] for r in results if r['pending']]
         all_dates = [r['date'] for r in results[:20]]
         
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            sel_dates = st.multiselect("📅 Chọn ngày ghép:", all_dates, default=pending_dates[:5] if pending_dates else [])
-        with c2:
-            st.write("Vị trí:")
-            g_cols = st.columns(3)
-            g_bc = g_cols[0].checkbox("BC", value=True)
-            g_cd = g_cols[1].checkbox("CD", value=False)
-            g_de = g_cols[2].checkbox("DE", value=True)
+        # 3 Rows of Selections
+        sel_bc = st.multiselect("📅 Chọn ngày cho BC:", all_dates, default=pending_dates[:2] if pending_dates else [], key="ms_bc")
+        sel_cd = st.multiselect("📅 Chọn ngày cho CD:", all_dates, default=[], key="ms_cd")
+        sel_de = st.multiselect("📅 Chọn ngày cho DE:", all_dates, default=pending_dates[2:4] if len(pending_dates) >=4 else pending_dates[:2], key="ms_de")
 
-        if sel_dates:
-            join_map = {}
-            for d in sel_dates:
-                # Find the combos for this date in results
-                match = next((r for r in results if r['date'] == d), None)
-                if match:
-                    join_map[d] = {'has_bc': g_bc, 'has_cd': g_cd, 'has_de': g_de, 'combos': match['combos']}
+        # Consolidate into join_map
+        join_map = {}
+        def add_to_map(dates, pos_key):
+            for d in dates:
+                if d not in join_map:
+                    match = next((r for r in results if r['date'] == d), None)
+                    if match:
+                        join_map[d] = {'has_bc': False, 'has_cd': False, 'has_de': False, 'combos': match['combos']}
+                if d in join_map:
+                    join_map[d][f'has_{pos_key}'] = True
+
+        add_to_map(sel_bc, 'bc'); add_to_map(sel_cd, 'cd'); add_to_map(sel_de, 'de')
             
-            if join_map:
-                lvl, max_f = join_bc_cd_de(join_map)
-                with st.container():
-                    st.write("---")
-                    res_cols = st.columns(3)
-                    for idx, (k, label) in enumerate([('4d','4D'),('3d','3D'),('2d','2D')]):
-                        with res_cols[idx]:
-                            st.write(f"**{label}**")
-                            # Show only top level (highest frequency)
-                            nums = sorted(list(lvl[max_f][k]))
+        if join_map:
+            lvl, max_f = join_bc_cd_de(join_map)
+            with st.container():
+                st.write("---")
+                res_cols = st.columns(3)
+                for idx, (k, label) in enumerate([('4d','4D'),('3d','3D'),('2d','2D')]):
+                    with res_cols[idx]:
+                        st.write(f"**{label}**")
+                        # Show highest levels
+                        for l in range(max_f, max(0, max_f-1), -1):
+                            nums = sorted(list(lvl[l][k]))
                             if nums: 
-                                st.caption(f"Mức {max_f} ({len(nums)} số):")
+                                st.caption(f"Mức {l} ({len(nums)} số):")
                                 st.code(", ".join(nums))
-                            else: st.caption("Không có số.")
-                    st.write("---")
+                st.write("---")
     
     m_data = []
     for r in results[:40]:
