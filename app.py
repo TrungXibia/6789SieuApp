@@ -272,112 +272,81 @@ with t_kybe:
             sum3_toks = [str((seqs[2][i] + seqs[3][i] + seqs[4][i]) % 10) for i in range(L)]
             sum5_toks = [str(sum(seqs[p][i] for p in range(5)) % 10) for i in range(L)]
             
-            c_main, c_side = st.columns([7, 3], gap="medium")
+                
+            # Full width layout - No columns split
+            st.write("### 📏 Kybe Grid (40 kỳ gần nhất)")
+                
+            # HTML Table for perfect symmetry and tight padding
+            rows_html = []
+            pos_labels = ["C.Ngàn", "Ngàn", "Trăm", "Chục", "Đơn vị", "Xì Tố", "Ngầu", "Tổng 3", "Tổng 5"]
+            row_colors = ["#f8fafc", "#f8fafc", "#f8fafc", "#f8fafc", "#f8fafc", "#93c5fd", "#ec4899", "#a855f7", "#f97316"]
             
-            with c_main:
-                st.write("### 📏 Kybe Grid (40 kỳ gần nhất)")
+            table_style = """
+            <style>
+                .kybe-table { width: 100%; border-collapse: separate; border-spacing: 2px; font-family: 'Consolas', monospace; table-layout: fixed; }
+                .kybe-table th, .kybe-table td { padding: 1px 2px; text-align: center; border-radius: 3px; font-size: 12px; }
+                .label-cell { text-align: left !important; font-weight: bold; color: #94a3b8; width: 80px; }
+                .data-cell { background: #1e293b; color: #f8fafc; border: 1px solid #334155; }
+                .gan-cell { background: #854d0e !important; color: #facc15 !important; border: 1px solid #facc15 !important; font-weight: bold; }
+                .token-cell { background: #0f172a; border: 1px solid #1e293b; }
+            </style>
+            """
+            
+            html = '<table class="kybe-table">'
+            for p in range(9):
+                html += f'<tr><td class="label-cell">{pos_labels[p]}</td>'
+                data = []
+                if p < 5: data = seqs[p]
+                elif p == 5: data = xi_toks
+                elif p == 6: data = ng_toks
+                elif p == 7: data = sum3_toks
+                elif p == 8: data = sum5_toks
                 
-                # HTML Table for perfect symmetry and tight padding
-                rows_html = []
-                pos_labels = ["C.Ngàn", "Ngàn", "Trăm", "Chục", "Đơn vị", "Xì Tố", "Ngầu", "Tổng 3", "Tổng 5"]
-                row_colors = ["#f8fafc", "#f8fafc", "#f8fafc", "#f8fafc", "#f8fafc", "#93c5fd", "#ec4899", "#a855f7", "#f97316"]
-                
-                table_style = """
-                <style>
-                    .kybe-table { width: 100%; border-collapse: separate; border-spacing: 2px; font-family: 'Consolas', monospace; table-layout: fixed; }
-                    .kybe-table th, .kybe-table td { padding: 1px 2px; text-align: center; border-radius: 3px; font-size: 12px; }
-                    .label-cell { text-align: left !important; font-weight: bold; color: #94a3b8; width: 80px; }
-                    .data-cell { background: #1e293b; color: #f8fafc; border: 1px solid #334155; }
-                    .gan-cell { background: #854d0e !important; color: #facc15 !important; border: 1px solid #facc15 !important; font-weight: bold; }
-                    .token-cell { background: #0f172a; border: 1px solid #1e293b; }
-                </style>
-                """
-                
-                html = '<table class="kybe-table">'
-                for p in range(9):
-                    html += f'<tr><td class="label-cell">{pos_labels[p]}</td>'
-                    data = []
-                    if p < 5: data = seqs[p]
-                    elif p == 5: data = xi_toks
-                    elif p == 6: data = ng_toks
-                    elif p == 7: data = sum3_toks
-                    elif p == 8: data = sum5_toks
+                color = row_colors[p]
+                for i in range(min(len(data), 20)):
+                    val = data[i]
+                    cls = "data-cell"
+                    if p >= 5: cls = "token-cell"
                     
-                    color = row_colors[p]
-                    for i in range(min(len(data), 20)):
-                        val = data[i]
-                        cls = "data-cell"
-                        if p >= 5: cls = "token-cell"
+                    # Logic Gan
+                    if p < 5 and i < len(data) - 4:
+                        found = False
+                        for lb in range(1, 5):
+                            for rp in range(5):
+                                if seqs[rp][i+lb] == val: found = True; break
+                            if found: break
+                        if not found: cls += " gan-cell"
                         
-                        # Logic Gan
-                        if p < 5 and i < len(data) - 4:
-                            found = False
-                            for lb in range(1, 5):
-                                for rp in range(5):
-                                    if seqs[rp][i+lb] == val: found = True; break
-                                if found: break
-                            if not found: cls += " gan-cell"
-                            
-                        html += f'<td class="{cls}" style="color: {color}">{val}</td>'
-                    html += '</tr>'
-                html += '</table>'
+                    html += f'<td class="{cls}" style="color: {color}">{val}</td>'
+                html += '</tr>'
+            html += '</table>'
                 
-                st.markdown(table_style + html, unsafe_allow_html=True)
-                
-                # Chu kỳ Bộ 3 & Bộ 4 removed as requested
+            st.markdown(table_style + html, unsafe_allow_html=True)
+            # Chu kỳ Bộ 3 & Bộ 4 removed as requested
             
-            with c_side:
-                st.write("### 📈 Phân tích nhanh")
-                
-                # Tai Xiu Stats
-                tx_stats = calculate_taixiu_stats(seqs, dates)
-                st.success(f"Tài: {tx_stats['counts'].get('T',0)} | Xỉu: {tx_stats['counts'].get('X',0)}")
-                for sig in tx_stats['signals']: st.warning(sig)
-                
-                st.write("---")
-                # Nhị hợp moved to bottom
-                pass
-
-                st.write("---")
-                # Bạc nhớ
-                bn_rows = [[seqs[p][i] for p in range(5)] for i in range(min(L, 40))]
-                p5t = get_bacnho_comb_preds(bn_rows, size=2)
-                pht = get_bacnho_comb_preds(bn_rows, size=2)
-                st.write("**5 Tinh / Hậu Tứ:**")
-                st.code(" | ".join(p5t))
-                st.code(" | ".join(pht))
-
-                st.write("---")
-                # Touch Pattern
-                st.write("**Touch Pattern:**")
-                tp1, tp2 = st.columns(2)
-                ng_in = tp1.text_input("Ngầu:", "0,1", key="kybe_ng")
-                tg_in = tp2.text_input("Tổng:", "5,6", key="kybe_tg")
-                touch_res = get_kybe_touch_levels(set(ng_in.split(",")), set(tg_in.split(",")))
-                st.error(f"M2: {','.join(touch_res['muc2'][:10])}")
-                st.warning(f"M1: {','.join(touch_res['muc1'][:10])}")
-                st.success(f"M0: {','.join(touch_res['muc0'][:10])}")
-
             st.divider()
-            # Nhị hợp Giao nhau - Full Width Section
+            # Nhị hợp Giao nhau - Moved inside c_main
             nh_stats = get_frequency_matrix(seqs)
             st.write("### 🔗 Nhị hợp & Giao nhau")
             
             tops = nh_stats['tops']
             intersections = nh_stats['intersections']
             
+            # Use 4 columns within the main column (might be tight but user wants full info)
             nc1, nc2, nc3, nc4 = st.columns(4)
             
             # Helper to display details
             def display_nh_details(col, title, top_digits, intersection):
                 with col:
-                    st.info(f"**{title}**")
-                    st.write(f"Top: `{','.join(top_digits)}`")
+                    # Use markdown for tighter header
+                    st.markdown(f"**{title}**")
+                    st.caption(f"Top: `{','.join(top_digits)}`")
                     if intersection and intersection['common']:
-                        st.write(f"Cùng {intersection['label']}: `{','.join(intersection['common'])}`")
-                        st.text_area("Dàn:", value=','.join(intersection['dan1']), height=70, disabled=True)
-                        st.text_area(f"Dàn {intersection['label']}:", value=','.join(intersection['dan2']), height=70, disabled=True)
-                        st.text_area("Dàn chung:", value=','.join(intersection['dan_chung']), height=70, disabled=True)
+                        st.caption(f"Cùng {intersection['label']}: `{','.join(intersection['common'])}`")
+                        # Reduced height for text areas to fit better
+                        st.text_area("Dàn:", value=','.join(intersection['dan1']), height=60, disabled=True, key=f"d1_{title}")
+                        st.text_area(f"Dàn {intersection['label']}:", value=','.join(intersection['dan2']), height=60, disabled=True, key=f"d2_{title}")
+                        st.text_area("Dàn chung:", value=','.join(intersection['dan_chung']), height=60, disabled=True, key=f"dc_{title}")
                     else:
                         st.caption("Không có giao nhau.")
 
@@ -392,9 +361,42 @@ with t_kybe:
             
             # Row 4: Lùi 3
             with nc4:
-                st.info("**Lùi 3**")
-                st.write(f"Top: `{','.join(tops[3])}`")
+                st.markdown("**Lùi 3**")
+                st.caption(f"Top: `{','.join(tops[3])}`")
                 st.caption("(Hết)")
+        
+            # Quick Analysis - Moved to bottom horizontal layout
+            st.divider()
+            st.write("### 📈 Phân tích nhanh")
+            
+            qa1, qa2, qa3 = st.columns(3)
+            
+            with qa1:
+                # Tai Xiu Stats
+                st.info("**Tài Xỉu (Rolling)**")
+                tx_stats = calculate_taixiu_stats(seqs, dates)
+                st.write(f"Tài: {tx_stats['counts'].get('T',0)} | Xỉu: {tx_stats['counts'].get('X',0)}")
+                for sig in tx_stats['signals']: st.warning(sig)
+
+            with qa2:
+                # Bạc nhớ
+                bn_rows = [[seqs[p][i] for p in range(5)] for i in range(min(L, 40))]
+                p5t = get_bacnho_comb_preds(bn_rows, size=2)
+                pht = get_bacnho_comb_preds(bn_rows, size=2)
+                st.info("**5 Tinh / Hậu Tứ (Gợi ý)**")
+                st.code(" | ".join(p5t) if p5t else "...")
+                st.code(" | ".join(pht) if pht else "...")
+
+            with qa3:
+                # Touch Pattern
+                st.info("**Touch Pattern**")
+                tp_in_cols = st.columns(2)
+                ng_in = tp_in_cols[0].text_input("Ngầu:", "0,1", key="kybe_ng")
+                tg_in = tp_in_cols[1].text_input("Tổng:", "5,6", key="kybe_tg")
+                touch_res = get_kybe_touch_levels(set(ng_in.split(",")), set(tg_in.split(",")))
+                st.caption(f"M2: {','.join(touch_res['muc2'][:10])}")
+                st.caption(f"M1: {','.join(touch_res['muc1'][:10])}")
+                st.caption(f"M0: {','.join(touch_res['muc0'][:10])}")
     else:
         st.info("Không đủ dữ liệu Kybe.")
 
