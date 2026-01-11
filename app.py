@@ -103,59 +103,51 @@ with t_matrix:
         sel_cd = st.multiselect("📅 Chọn ngày cho CD:", all_dates, default=[], key="ms_cd")
         sel_de = st.multiselect("📅 Chọn ngày cho DE:", all_dates, default=pending_dates[2:4] if len(pending_dates) >=4 else pending_dates[:2], key="ms_de")
 
-        # Consolidate into join_map
+        # Prepare join_map for processor: { date: [has_bc, has_cd, has_de, combos] }
         join_map = {}
-        def add_to_map(dates, pos_key):
-            for d in dates:
-                if d not in join_map:
-                    match = next((r for r in results if r['date'] == d), None)
-                    if match:
-                        join_map[d] = {'has_bc': False, 'has_cd': False, 'has_de': False, 'combos': match['combos']}
-                if d in join_map:
-                    join_map[d][f'has_{pos_key}'] = True
-
-        add_to_map(sel_bc, 'bc'); add_to_map(sel_cd, 'cd'); add_to_map(sel_de, 'de')
-            
+        for d in sel_bc + sel_cd + sel_de:
+            if d not in join_map:
+                match = next((r for r in results if r['date'] == d), None)
+                if match:
+                    join_map[d] = [False, False, False, match['combos']]
+            if d in join_map:
+                if d in sel_bc: join_map[d][0] = True
+                if d in sel_cd: join_map[d][1] = True
+                if d in sel_de: join_map[d][2] = True
+        
         if join_map:
-            # --- NOTES (ALways visible) ---
+            # --- NOTES (Always visible) ---
             st.write("📝 **Chi tiết dàn nguồn:**")
-            for d, info in join_map.items():
-                pos_list = [p.upper() for p in ['bc','cd','de'] if info[f'has_{p}']]
-                # Format the numbers list to be more readable
-                num_str = ", ".join(info['combos'])
+            for d, flags in join_map.items():
+                pos_list = [p.upper() for i, p in enumerate(['bc','cd','de']) if flags[i]]
+                num_str = ", ".join(flags[3])
                 if len(num_str) > 120: num_str = num_str[:120] + "..."
                 st.markdown(f"✅ **{d} ({'+'.join(pos_list)}):** {num_str}")
 
-            lvl_data, max_sh = join_bc_cd_de(join_map)
+            # Call processor with tuple values
+            lvl_data, max_sh = join_bc_cd_de({k: tuple(v) for k, v in join_map.items()})
             
             st.write("---")
-            show_4d = len(sel_bc) > 0
-            show_3d = len(sel_bc) > 0 or len(sel_cd) > 0
-            show_2d = True
+            # Result Visualization
+            res_cols = st.columns(3)
+            col_labels = [('4d', '🔥 Dàn 4 Càng (4D)'), ('3d', '⭐ Dàn 3 Càng (3D)'), ('2d', '🍀 Dàn 2 Càng (2D)')]
             
-            cols_to_show = []
-            if show_4d: cols_to_show.append(('4d', '4D'))
-            if show_3d: cols_to_show.append(('3d', '3D'))
-            if show_2d: cols_to_show.append(('2d', '2D'))
-            
-            res_cols = st.columns(len(cols_to_show))
-            
-            for idx, (k, label) in enumerate(cols_to_show):
+            for idx, (k, label) in enumerate(col_labels):
                 with res_cols[idx]:
                     with st.container(border=True):
-                        st.write(f"**{label}**")
-                        # Show potential levels from max_sh down to 0
+                        st.subheader(label)
+                        # Show levels from max_sh down to 0
                         for l in range(max_sh, -1, -1):
                             nums = sorted(list(lvl_data[l][k]))
                             if nums:
-                                st.caption(f"Mức {l} ({len(nums)} số):")
+                                st.markdown(f"**Mức {l}** ({len(nums)} số):")
                                 if l == 0 and len(nums) > 100:
                                     st.code(", ".join(nums[:50]) + f" ... (+{len(nums)-50} số)")
                                 else:
                                     st.code(", ".join(nums))
-                            elif l > 0: 
-                                st.caption(f"Mức {l} (0 số):")
-                                st.code("—")
+                            elif l > 0:
+                                st.caption(f"Mức {l} (0 số)")
+                                st.write("—")
             st.write("---")
     
     m_data = []

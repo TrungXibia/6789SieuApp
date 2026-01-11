@@ -225,50 +225,73 @@ def analyze_bet_cham(results_list, n_digits=2):
 
 def join_bc_cd_de(selected_map):
     """
-    selected_map: { date: {'has_bc': bool, 'has_cd': bool, 'has_de': bool, 'combos': list} }
-    Counts frequency PER SELECTION (Position + Date).
+    selected_map: { date: (has_bc, has_cd, has_de, combos) }
+    Correctly implements original logic and rolling overlaps.
     """
     total_2d = Counter()
     total_3d = Counter()
     total_4d = Counter()
     
     num_sources = 0
-    for date, info in selected_map.items():
-        combos = info['combos']
-        if info['has_bc']:
+    # We count levels based on SELECTIONS (Position x Date)
+    for date, (has_bc, has_cd, has_de, combos) in selected_map.items():
+        if not combos: continue
+        
+        # 4D: Thousands-Hundreds-Tens-Unit
+        # 3D: Hundreds-Tens-Unit
+        # 2D: Tens-Unit
+        
+        if has_bc:
             num_sources += 1
             s3, s4 = set(), set()
             for bc in combos:
-                for d in "0123456789": s3.add(bc + d)
+                # BC is Thousands-Hundreds
+                # 4D expansion: BC + xx
                 for i in range(100): s4.add(bc + f"{i:02d}")
+                # 3D expansion: BC[1] + xx (Because BC[0] is Thousands)
+                hundred_digit = bc[1]
+                for i in range(100): s3.add(hundred_digit + f"{i:02d}")
             total_3d.update(s3); total_4d.update(s4)
         
-        if info['has_cd']:
+        if has_cd:
             num_sources += 1
-            s3, s4 = set(), set()
+            s2, s3, s4 = set(), set(), set()
             for cd in combos:
-                for d in "0123456789": 
-                    s3.add(cd + d); s3.add(d + cd)
-                for i in range(100): 
-                    s4.add(f"{i//10:01d}" + cd + f"{i%10:01d}")
-            total_3d.update(s3); total_4d.update(s4)
+                # CD is Hundreds-Tens
+                # 4D expansion: x + CD + y
+                for i in range(10):
+                    for j in range(10):
+                        s4.add(f"{i}{cd}{j}")
+                # 3D expansion: CD + x AND x + CD (Loose match logic from original app)
+                for i in range(10):
+                    s3.add(cd + str(i))
+                    s3.add(str(i) + cd)
+                # 2D expansion: CD[1] + x (CD[1] is Tens digit)
+                tens_digit = cd[1]
+                for i in range(10): s2.add(tens_digit + str(i))
+            total_2d.update(s2); total_3d.update(s3); total_4d.update(s4)
             
-        if info['has_de']:
+        if has_de:
             num_sources += 1
             s2, s3, s4 = set(), set(), set()
             for de in combos:
-                s2.add(de)
-                for d in "0123456789": s3.add(d + de)
+                # DE is Tens-Unit
+                # 4D expansion: xx + DE
                 for i in range(100): s4.add(f"{i:02d}" + de)
+                # 3D expansion: x + DE
+                for i in range(10): s3.add(str(i) + de)
+                # 2D expansion: DE
+                s2.add(de)
             total_2d.update(s2); total_3d.update(s3); total_4d.update(s4)
             
     lvl_data = defaultdict(lambda: {'2d': set(), '3d': set(), '4d': set()})
     
+    # Map frequencies
     for n, f in total_2d.items(): lvl_data[f]['2d'].add(n)
     for n, f in total_3d.items(): lvl_data[f]['3d'].add(n)
     for n, f in total_4d.items(): lvl_data[f]['4d'].add(n)
     
-    # Mức 0
+    # Mức 0 (Numbers not hit)
     hit_2d = set(total_2d.keys()); hit_3d = set(total_3d.keys()); hit_4d = set(total_4d.keys())
     lvl_data[0]['2d'] = set(f"{i:02d}" for i in range(100)) - hit_2d
     lvl_data[0]['3d'] = set(f"{i:03d}" for i in range(1000)) - hit_3d
