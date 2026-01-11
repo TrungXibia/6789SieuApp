@@ -261,7 +261,7 @@ with t_kybe:
                         cols[i+1].markdown(
                             f"<div style='background:{bg}; color:{color}; text-align:center; border:1px solid {border_color}; "
                             f"border-radius:4px; font-weight:{'bold' if is_bold else 'normal'}; font-family:Consolas, monospace; "
-                            f"font-size:14px; padding:1px 0;'>{val}</div>", 
+                            f"font-size:13px; padding:1px 0;'>{val}</div>", 
                             unsafe_allow_html=True
                         )
 

@@ -395,11 +395,20 @@ def get_frequency_matrix(seqs, top_n=5):
     import itertools as it_tools
     for i in range(1, 4):
         common = [d for d in taps[0] if d in taps[i]]
-        dan_cur = []
+        dan_chung = []
         if common:
-            pairs = list(it_tools.permutations(taps[0], 2))
-            dan_cur = sorted(list(set("".join(map(str, p)) for p in pairs if p[0] in common or p[1] in common)))
-        intersections.append({'label': f"Lùi {i}", 'common': common, 'dan': dan_cur})
+            # Create pairs for taps[0] (Cur)
+            pairs0 = list(it_tools.permutations(taps[0], 2))
+            dan0 = set("".join(map(str, p)) for p in pairs0 if p[0] in common or p[1] in common)
+            
+            # Create pairs for taps[i] (Lùi i)
+            pairs_i = list(it_tools.permutations(taps[i], 2))
+            dan_i = set("".join(map(str, p)) for p in pairs_i if p[0] in common or p[1] in common)
+            
+            # Intersection of the two sets of pairs
+            dan_chung = sorted(list(dan0 & dan_i))
+            
+        intersections.append({'label': f"Lùi {i}", 'common': common, 'dan': dan_chung})
         
     return {'mats': taps, 'intersections': intersections}
 
