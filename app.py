@@ -117,65 +117,47 @@ with t_matrix:
         add_to_map(sel_bc, 'bc'); add_to_map(sel_cd, 'cd'); add_to_map(sel_de, 'de')
             
         if join_map:
-            # --- CSS ---
-            st.markdown("""
-            <style>
-            .res-card {
-                border: 1px solid rgba(16, 185, 129, 0.4);
-                border-radius: 10px;
-                padding: 15px;
-                background-color: rgba(16, 185, 129, 0.05);
-                margin-bottom: 10px;
-                height: 100%;
-            }
-            .src-note {
-                color: #94a3b8;
-                font-size: 0.8rem;
-                padding: 4px 8px;
-                border-left: 2px solid #10b981;
-                margin-bottom: 4px;
-                background: rgba(255,255,255,0.02);
-            }
-            </style>
-            """, unsafe_allow_html=True)
-
             # --- NOTES ---
-            with st.expander("📝 Chi tiết dàn nguồn (Note)", expanded=True):
+            with st.expander("📝 Chi tiết dàn nguồn (Note)", expanded=False):
                 for d, info in join_map.items():
                     pos_list = [p.upper() for p in ['bc','cd','de'] if info[f'has_{p}']]
-                    st.markdown(f"<div class='src-note'>📅 <b>{d} ({'+'.join(pos_list)}):</b> {', '.join(info['combos'])}</div>", unsafe_allow_html=True)
+                    st.markdown(f"**{d} ({'+'.join(pos_list)}):** {', '.join(info['combos'])}")
 
             lvl_data, _ = join_bc_cd_de(join_map)
-            with st.container():
-                st.write("---")
-                
-                show_4d = len(sel_bc) > 0
-                show_3d = len(sel_bc) > 0 or len(sel_cd) > 0
-                show_2d = True
-                
-                cols_to_show = []
-                if show_4d: cols_to_show.append(('4d', '4D'))
-                if show_3d: cols_to_show.append(('3d', '3D'))
-                if show_2d: cols_to_show.append(('2d', '2D'))
-                
-                res_cols = st.columns(len(cols_to_show))
-                
-                for idx, (k, label) in enumerate(cols_to_show):
-                    with res_cols[idx]:
-                        st.markdown(f"<div class='res-card'>", unsafe_allow_html=True)
+            
+            st.write("---")
+            show_4d = len(sel_bc) > 0
+            show_3d = len(sel_bc) > 0 or len(sel_cd) > 0
+            show_2d = True
+            
+            cols_to_show = []
+            if show_4d: cols_to_show.append(('4d', '4D'))
+            if show_3d: cols_to_show.append(('3d', '3D'))
+            if show_2d: cols_to_show.append(('2d', '2D'))
+            
+            res_cols = st.columns(len(cols_to_show))
+            
+            for idx, (k, label) in enumerate(cols_to_show):
+                with res_cols[idx]:
+                    with st.container(border=True):
                         st.write(f"**{label}**")
-                        local_freqs = [f for f in lvl_data.keys() if lvl_data[f][k]]
+                        # Find local max frequency
+                        local_freqs = sorted([f for f in lvl_data.keys() if lvl_data[f][k]], reverse=True)
                         if local_freqs:
-                            m_max = max(local_freqs)
-                            for l in range(m_max, max(0, m_max-2), -1):
+                            # Show ALL levels from local max down to 0
+                            m_max = local_freqs[0]
+                            for l in range(m_max, -1, -1):
                                 nums = sorted(list(lvl_data[l][k]))
                                 if nums:
                                     st.caption(f"Mức {l} ({len(nums)} số):")
-                                    st.code(", ".join(nums))
+                                    # For Mức 0, truncate view if too many numbers
+                                    if l == 0 and len(nums) > 100:
+                                        st.code(", ".join(nums[:50]) + f" ... (+{len(nums)-50} số)")
+                                    else:
+                                        st.code(", ".join(nums))
                         else:
                             st.caption("Không có số.")
-                        st.markdown("</div>", unsafe_allow_html=True)
-                st.write("---")
+            st.write("---")
     
     m_data = []
     for r in results[:40]:

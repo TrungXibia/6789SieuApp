@@ -226,6 +226,7 @@ def analyze_bet_cham(results_list, n_digits=2):
 def join_bc_cd_de(selected_map):
     """
     selected_map: { date: {'has_bc': bool, 'has_cd': bool, 'has_de': bool, 'combos': list} }
+    Counts frequency PER DATE.
     """
     total_2d = Counter()
     total_3d = Counter()
@@ -233,36 +234,49 @@ def join_bc_cd_de(selected_map):
     
     for date, info in selected_map.items():
         combos = info['combos']
+        # Collect unique numbers for THIS DATE
+        date_2d = set()
+        date_3d = set()
+        date_4d = set()
+        
         if info['has_bc']:
-            r3, r4 = set(), set()
             for bc in combos:
-                for d in "0123456789": r3.add(bc + d)
-                for i in range(100): r4.add(bc + f"{i:02d}")
-            total_3d.update(r3); total_4d.update(r4)
+                for d in "0123456789": date_3d.add(bc + d)
+                for i in range(100): date_4d.add(bc + f"{i:02d}")
         
         if info['has_cd']:
-            r3, r4 = set(), set()
             for cd in combos:
                 for d in "0123456789": 
-                    r3.add(cd + d)
-                    r3.add(d + cd)
+                    date_3d.add(cd + d)
+                    date_3d.add(d + cd)
                 for i in range(100): 
-                    r4.add(f"{i//10:01d}" + cd + f"{i%10:01d}")
-            total_3d.update(r3); total_4d.update(r4)
+                    date_4d.add(f"{i//10:01d}" + cd + f"{i%10:01d}")
             
         if info['has_de']:
-            r2, r3, r4 = set(), set(), set()
             for de in combos:
-                r2.add(de)
-                for d in "0123456789": r3.add(d + de)
-                for i in range(100): r4.add(f"{i:02d}" + de)
-            total_2d.update(r2); total_3d.update(r3); total_4d.update(r4)
+                date_2d.add(de)
+                for d in "0123456789": date_3d.add(d + de)
+                for i in range(100): date_4d.add(f"{i:02d}" + de)
+        
+        # Update global counts only once per date per number
+        total_2d.update(date_2d)
+        total_3d.update(date_3d)
+        total_4d.update(date_4d)
             
     lvl_data = defaultdict(lambda: {'2d': set(), '3d': set(), '4d': set()})
     all_freqs = {0}
     for n, f in total_2d.items(): lvl_data[f]['2d'].add(n); all_freqs.add(f)
     for n, f in total_3d.items(): lvl_data[f]['3d'].add(n); all_freqs.add(f)
     for n, f in total_4d.items(): lvl_data[f]['4d'].add(n); all_freqs.add(f)
+    
+    # Pre-populate Mức 0 with all possible numbers if not hit
+    hit_2d = set(total_2d.keys())
+    hit_3d = set(total_3d.keys())
+    hit_4d = set(total_4d.keys())
+    
+    lvl_data[0]['2d'] = set(f"{i:02d}" for i in range(100)) - hit_2d
+    lvl_data[0]['3d'] = set(f"{i:03d}" for i in range(1000)) - hit_3d
+    lvl_data[0]['4d'] = set(f"{i:04d}" for i in range(10000)) - hit_4d
     
     return lvl_data, max(all_freqs)
 def calculate_tc_stats(data_source, pos_idx=-2):
