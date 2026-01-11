@@ -1636,8 +1636,6 @@ class SieuGaApp:
             if self.last_rendered_matrix_day.get(text) != curr_bt:
                 self.render_matrix_unified(text)
         elif text == "🧠 Kybe - Grok":
-            self.render_xi_to()
-        elif text == "🧠 Kybe - Grok":
             self.render_kybe_analysis()
         elif text == "📊 BC-CD-DE":
             self.render_bc_cd_de()

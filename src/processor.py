@@ -299,3 +299,107 @@ def calculate_tc_stats(data_source, pos_idx=-2):
             'tong_gaps': tong_gan.copy()
         })
     return list(reversed(results))
+
+def compute_kybe_cycles(working_data, combos):
+    """
+    Compute cycles, gaps, and due for sets of numbers.
+    - working_data: List of sets, each set containing digits found in GĐB.
+    - combos: List of tuples (e.g., 3-digit or 4-digit combos).
+    """
+    L_total = len(working_data)
+    out = []
+    for tup in combos:
+        # idxs: indices (newest is 0) where tup matches S
+        idxs = [i for i, S in enumerate(working_data) if all(d in S for d in tup)]
+        if not idxs: continue
+        idxs.sort()
+        
+        # Chronological index = (L_total - 1 - i)
+        chrono_idxs = sorted([L_total - 1 - i for i in idxs])
+        gaps = [chrono_idxs[i + 1] - chrono_idxs[i] for i in range(len(chrono_idxs) - 1)]
+        
+        cyc, support = (None, 0)
+        if gaps:
+            c = Counter(gaps)
+            cyc, support = max(c.items(), key=lambda kv: (kv[1], -kv[0]))
+        
+        last_idx = idxs[0] # Newest occurrence index
+        miss = last_idx
+        due = None if not cyc else (cyc - (miss % cyc)) % cyc
+        gan_max = max(gaps) if gaps else miss
+        
+        out.append({
+            "tok": "".join(map(str, sorted(tup))),
+            "cyc": cyc, "support": support, "miss": miss,
+            "due": due, "gan_max": gan_max, "occ": len(idxs),
+            "last_idx": last_idx
+        })
+    return sorted(out, key=lambda x: (x['miss'], x['occ']), reverse=True)
+
+def calculate_taixiu_stats(seqs):
+    """
+    Calculate Tai/Xiu and Rong/Ho stats from 5-digit sequences.
+    seqs: List of 5 lists (positions 0-4).
+    """
+    L = len(seqs[0])
+    rh_tokens, tx_tokens = [], []
+    counts = Counter()
+    for i in range(L):
+        # Rong/Ho: C0 vs C4
+        c0, c4 = seqs[0][i], seqs[4][i]
+        rh = "R" if c0 > c4 else ("H" if c0 < c4 else "=")
+        
+        # Tai/Xiu: Sum of all 5
+        total5 = sum(seqs[p][i] for p in range(5))
+        tx = "T" if total5 >= 23 else "X"
+        
+        rh_tokens.append(rh)
+        tx_tokens.append(tx)
+        counts[tx] += 1
+        
+    return {
+        'rh_tokens': rh_tokens,
+        'tx_tokens': tx_tokens,
+        'counts': dict(counts),
+        'total': L
+    }
+
+def get_kybe_touch_levels(ngau_digits, tong_digits, mode="Chạm Tổng"):
+    """
+    Logic for Mức 0, 1, 2 based on selected Chạm and Tổng digits.
+    """
+    def get_set(digits):
+        if not digits: return set()
+        res = set()
+        for i in range(100):
+            s = f"{i:02d}"
+            n1, n2 = int(s[0]), int(s[1])
+            match_cham = str(n1) in digits or str(n2) in digits
+            match_tong = str((n1 + n2) % 10) in digits
+            if mode == "Chạm":
+                if match_cham: res.add(s)
+            elif mode == "Tổng":
+                if match_tong: res.add(s)
+            else: # Chạm Tổng
+                if match_cham or match_tong: res.add(s)
+        return res
+
+    set_a = get_set(ngau_digits)
+    set_b = get_set(tong_digits)
+    
+    muc2, muc1, muc0 = [], [], []
+    for i in range(100):
+        s = f"{i:02d}"
+        in_a = s in set_a
+        in_b = s in set_b
+        if in_a and in_b: muc2.append(s)
+        elif in_a or in_b: muc1.append(s)
+        else: muc0.append(s)
+        
+    return {
+        'set_a': sorted(list(set_a)),
+        'set_b': sorted(list(set_b)),
+        'muc2': sorted(muc2),
+        'muc1': sorted(muc1),
+        'muc0': sorted(muc0)
+    }

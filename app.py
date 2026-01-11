@@ -4,7 +4,11 @@ import numpy as np
 from datetime import datetime, timedelta
 from src.constants import *
 from src.scraper import fetch_xsmb_full, fetch_station_data, fetch_dien_toan, fetch_than_tai
-from src.processor import process_matrix, calculate_frequencies, calculate_tc_stats, analyze_bet_cham, extract_numbers_from_data, join_bc_cd_de
+from src.processor import (
+    process_matrix, calculate_frequencies, calculate_tc_stats, 
+    analyze_bet_cham, extract_numbers_from_data, join_bc_cd_de,
+    compute_kybe_cycles, calculate_taixiu_stats, get_kybe_touch_levels
+)
 
 # Set page config
 st.set_page_config(page_title="SieuGa Web - Cyber Dark", layout="wide", initial_sidebar_state="expanded")
@@ -70,8 +74,8 @@ if not st.session_state.data_ready or 'last_config' not in st.session_state or s
         st.session_state.data_ready = True; st.session_state.last_config = (region, station, num_days)
 
 # --- APP TABS ---
-t_data, t_matrix, t_freq, t_tc3, t_tc4, t_multi, t_scan, t_bet = st.tabs([
-    "📋 DỮ LIỆU", "🎯 MATRIX", "📊 TẦN SUẤT 1", "📅 TỔNG & CHẠM 3", "🔢 TỔNG & CHẠM 4", "🌐 ĐA CHIỀU", "🔍 BỘ CHỌN/SCAN", "📈 BỆT CHẠM"
+t_data, t_matrix, t_freq, t_tc3, t_tc4, t_multi, t_scan, t_bet, t_kybe = st.tabs([
+    "📋 DỮ LIỆU", "🎯 MATRIX", "📊 TẦN SUẤT 1", "📅 TỔNG & CHẠM 3", "🔢 TỔNG & CHẠM 4", "🌐 ĐA CHIỀU", "🔍 BỘ CHỌN/SCAN", "📈 BỆT CHẠM", "🧠 KYBE - GROK"
 ])
 
 with t_data:
@@ -212,5 +216,84 @@ with t_bet:
     else:
         st.info("Chưa phát hiện tín hiệu Bệt Thẳng trong 30 ngày gần đây.")
 
+with t_kybe:
+    st.subheader("🧠 Dashboard Kybe - Grok Advanced")
+    
+    # 1. Prepare Data for Kybe
+    k_offset = offset
+    k_days = st.slider("Số kỳ phân tích:", 50, 200, 100)
+    k_data = st.session_state.target_data[k_offset : k_offset + k_days]
+    
+    if k_data:
+        # Extract digits for each day
+        digsets = []
+        seqs = [[] for _ in range(5)] # For Tai/Xiu
+        for d in k_data:
+            val = d.get('xsmb_full') or (str(d['all_prizes'][0]) if 'all_prizes' in d else "")
+            if len(val) >= 5:
+                digits_raw = [int(c) for c in val[-5:] if c.isdigit()]
+                if len(digits_raw) == 5:
+                    digsets.append(set(str(d) for d in digits_raw))
+                    for p in range(5): seqs[p].append(digits_raw[p])
+        
+        if digsets:
+            c1, c2 = st.columns([2, 1])
+            
+            with c1:
+                st.write("### 🔢 Chu kỳ 3-4 số (Hot Cycle)")
+                # Generate sample 3D/4D combos to check (e.g., from recent digits)
+                recent_digits = sorted(list(digsets[0]))
+                import itertools
+                combos3 = list(itertools.combinations(recent_digits, 3))
+                combos4 = list(itertools.combinations(recent_digits, 4))
+                
+                cycle_results = compute_kybe_cycles(digsets, combos3 + combos4)
+                
+                df_cyc = pd.DataFrame(cycle_results)
+                if not df_cyc.empty:
+                    df_cyc['tok'] = df_cyc['tok'].apply(lambda x: f"💎 {x}")
+                    st.dataframe(df_cyc.head(15), use_container_width=True, height=400)
+            
+            with c2:
+                st.write("### 📊 Thống kê Tài Xỉu")
+                tx_stats = calculate_taixiu_stats(seqs)
+                st.metric("Tổng kỳ:", tx_stats['total'])
+                
+                tc1, tc2 = st.columns(2)
+                tc1.metric("Tài (T):", tx_stats['counts'].get('T', 0))
+                tc2.metric("Xỉu (X):", tx_stats['counts'].get('X', 0))
+                
+                # Biểu đồ xu hướng (Recent 20)
+                st.write("**Xu hướng gần nhất (T/X):**")
+                st.code(" ".join(tx_stats['tx_tokens'][:20]))
+                st.write("**Rồng / Hổ:**")
+                st.code(" ".join(tx_stats['rh_tokens'][:20]))
+
+            st.divider()
+            st.write("### 🔢 Touch Pattern Module (Mức 0, 1, 2)")
+            
+            tp1, tp2, tp3 = st.columns([1, 1, 1])
+            ngau_in = tp1.text_input("Ngầu:", "0,1,2")
+            tong_in = tp2.text_input("Tổng:", "5,6,7")
+            tp_mode = tp3.selectbox("Chế độ:", ["Chạm Tổng", "Chạm", "Tổng"])
+            
+            ng_digits = set("".join(filter(str.isdigit, ngau_in)))
+            tg_digits = set("".join(filter(str.isdigit, tong_in)))
+            
+            touch_res = get_kybe_touch_levels(ng_digits, tg_digits, tp_mode)
+            
+            m1, m2, m3 = st.columns(3)
+            with m1:
+                st.error(f"💎 Mức 2 ({len(touch_res['muc2'])})")
+                st.code(",".join(touch_res['muc2']))
+            with m2:
+                st.warning(f"💎 Mức 1 ({len(touch_res['muc1'])})")
+                st.code(",".join(touch_res['muc1']))
+            with m3:
+                st.success(f"💎 Mức 0 ({len(touch_res['muc0'])})")
+                st.code(",".join(touch_res['muc0']))
+    else:
+        st.info("Không đủ dữ liệu để phân tích Kybe.")
+
 st.divider()
-st.caption(f"SieuGa Streamlit v3.0 | {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+st.caption(f"SieuGa Streamlit v3.1 (Kybe Edition) | {datetime.now().strftime('%d/%m/%Y %H:%M')}")
