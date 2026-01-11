@@ -300,6 +300,136 @@ def calculate_tc_stats(data_source, pos_idx=-2):
         })
     return list(reversed(results))
 
+def classify_xito(digits):
+    """Classify a 5-digit hand into poker-like categories."""
+    if not digits or len(digits) < 5: return "—"
+    c = Counter(digits)
+    counts = sorted(c.values(), reverse=True)
+    if counts[0] == 5: return "Năm Quý"
+    if counts[0] == 4: return "Tứ Quý"
+    if counts[0] == 3 and counts[1] == 2: return "Cù Lũ"
+    if counts[0] == 3: return "Sám Cô"
+    if counts[0] == 2 and counts[1] == 2: return "Thú"
+    if counts[0] == 2: return "Đôi"
+    
+    # Check straight
+    sorted_d = sorted(list(set(digits)))
+    if len(sorted_d) == 5 and (sorted_d[-1] - sorted_d[0] == 4): return "Sảnh"
+    return "Rác"
+
+def classify_ngau(digits):
+    """Classify Ngau pattern (0-9 or K)."""
+    if not digits or len(digits) < 5: return "—"
+    s = sum(digits) % 10
+    return "K" if s == 0 else str(s)
+
+def calculate_taixiu_stats(seqs, dates):
+    """
+    Calculate Tai/Xiu and Rong/Ho stats from 5-digit sequences.
+    Also detects entry signals.
+    """
+    L = len(seqs[0])
+    rh_tokens, tx_tokens = [], []
+    counts = Counter()
+    signals = []
+    
+    for i in range(L):
+        c0, c4 = seqs[0][i], seqs[4][i]
+        rh = "R" if c0 > c4 else ("H" if c0 < c4 else "=")
+        total5 = sum(seqs[p][i] for p in range(5))
+        tx = "T" if total5 >= 23 else "X"
+        rh_tokens.append(rh)
+        tx_tokens.append(tx)
+        counts[tx] += 1
+    
+    # Detect signals (RT -> X, HX -> T)
+    for i in range(min(L, 10)):
+        if rh_tokens[i] == "R" and tx_tokens[i] == "T":
+            signals.append(f"Tín hiệu Rồng & Tài -> Vào X (Kỳ {dates[i]})")
+            break
+    for i in range(min(L, 10)):
+        if rh_tokens[i] == "H" and tx_tokens[i] == "X":
+            signals.append(f"Tín hiệu Hổ & Xỉu -> Vào T (Kỳ {dates[i]})")
+            break
+            
+    return {
+        'rh_tokens': rh_tokens,
+        'tx_tokens': tx_tokens,
+        'counts': dict(counts),
+        'signals': signals,
+        'total': L
+    }
+
+def get_frequency_matrix(seqs, top_n=5):
+    """
+    Nhị hợp & Giao nhau: Frequency calculation for 4 offsets.
+    """
+    L = len(seqs[0])
+    import itertools
+    
+    def get_cnt(offset):
+        if offset + 40 > L: return Counter()
+        try:
+            # Current 5 digits as source
+            last5 = [seqs[p][offset] for p in range(5)]
+            combos = list(itertools.combinations(last5, 3)) + list(itertools.combinations(last5, 4))
+            # Check hits in history relative to these combos
+            digsets = [set(seqs[p][j] for p in range(5)) for j in range(offset, offset + 40)]
+            cnt = Counter()
+            for tup in combos:
+                # Find occurrences of combo in slice
+                idxs = [j for j, S in enumerate(digsets) if all(d in S for d in tup)]
+                for j in idxs:
+                    if j > 0: # Check the day AFTER the match (which is index j-1 since newest=0)
+                        for p in range(5): cnt[str(seqs[p][offset + j - 1])] += 1
+            return cnt
+        except: return Counter()
+
+    c_mats = [get_cnt(i) for i in range(4)] # Cur, P1, P2, P3
+    taps = []
+    for c in c_mats:
+        taps.append([d for d, _ in sorted(c.items(), key=lambda x: (-x[1], x[0]))[:top_n]])
+    
+    # Find Intersections (Giao nhau)
+    intersections = []
+    import itertools as it_tools
+    for i in range(1, 4):
+        common = [d for d in taps[0] if d in taps[i]]
+        dan_cur = []
+        if common:
+            pairs = list(it_tools.permutations(taps[0], 2))
+            dan_cur = sorted(list(set("".join(map(str, p)) for p in pairs if p[0] in common or p[1] in common)))
+        intersections.append({'label': f"Lùi {i}", 'common': common, 'dan': dan_cur})
+        
+    return {'mats': taps, 'intersections': intersections}
+
+def get_bacnho_comb_preds(bn_rows, size=2, n_results=3):
+    """
+    Bạc nhớ tổ hợp (5 Tinh / Hậu Tứ).
+    bn_rows: List of lists (recent 5-digit results).
+    """
+    if not bn_rows or len(bn_rows) < 2: return []
+    import itertools
+    latest = bn_rows[0]
+    # Use only specific positions if it's Hậu Tứ (3,4) or 5 Tinh (all)
+    # This simplified version uses top combos
+    current_set = set(latest)
+    combs = list(itertools.combinations(sorted(list(current_set)), size))
+    
+    future_counts = Counter()
+    for c in combs:
+        c_set = set(c)
+        for j in range(1, len(bn_rows)):
+            h_digits = set(bn_rows[j])
+            if c_set.issubset(h_digits):
+                # What appeared in the NEXT period (j-1)
+                next_res = bn_rows[j-1]
+                for next_c in itertools.combinations(sorted(next_res), 2):
+                    future_counts["".join(map(str, next_c))] += 1
+                    
+    top = sorted(future_counts.items(), key=lambda x: (-x[1], x[0]))[:n_results]
+    return [x[0] for x in top]
+
 def compute_kybe_cycles(working_data, combos):
     """
     Compute cycles, gaps, and due for sets of numbers.
@@ -334,35 +464,7 @@ def compute_kybe_cycles(working_data, combos):
             "due": due, "gan_max": gan_max, "occ": len(idxs),
             "last_idx": last_idx
         })
-    return sorted(out, key=lambda x: (x['miss'], x['occ']), reverse=True)
-
-def calculate_taixiu_stats(seqs):
-    """
-    Calculate Tai/Xiu and Rong/Ho stats from 5-digit sequences.
-    seqs: List of 5 lists (positions 0-4).
-    """
-    L = len(seqs[0])
-    rh_tokens, tx_tokens = [], []
-    counts = Counter()
-    for i in range(L):
-        # Rong/Ho: C0 vs C4
-        c0, c4 = seqs[0][i], seqs[4][i]
-        rh = "R" if c0 > c4 else ("H" if c0 < c4 else "=")
-        
-        # Tai/Xiu: Sum of all 5
-        total5 = sum(seqs[p][i] for p in range(5))
-        tx = "T" if total5 >= 23 else "X"
-        
-        rh_tokens.append(rh)
-        tx_tokens.append(tx)
-        counts[tx] += 1
-        
-    return {
-        'rh_tokens': rh_tokens,
-        'tx_tokens': tx_tokens,
-        'counts': dict(counts),
-        'total': L
-    }
+    return sorted(out, key=lambda x: (x['due'] if x['due'] is not None else 999, -x['occ']))
 
 def get_kybe_touch_levels(ngau_digits, tong_digits, mode="Chạm Tổng"):
     """

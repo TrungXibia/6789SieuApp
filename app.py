@@ -7,7 +7,8 @@ from src.scraper import fetch_xsmb_full, fetch_station_data, fetch_dien_toan, fe
 from src.processor import (
     process_matrix, calculate_frequencies, calculate_tc_stats, 
     analyze_bet_cham, extract_numbers_from_data, join_bc_cd_de,
-    compute_kybe_cycles, calculate_taixiu_stats, get_kybe_touch_levels
+    compute_kybe_cycles, calculate_taixiu_stats, get_kybe_touch_levels,
+    get_frequency_matrix, get_bacnho_comb_preds, classify_xito, classify_ngau
 )
 
 # Set page config
@@ -202,81 +203,128 @@ with t_bet:
 with t_kybe:
     st.subheader("🧠 Dashboard Kybe - Grok Advanced")
     
-    # 1. Prepare Data for Kybe
-    k_offset = offset
-    k_days = st.slider("Số kỳ phân tích:", 50, 200, 100)
-    k_data = st.session_state.target_data[k_offset : k_offset + k_days]
+    k_days = st.sidebar.select_slider("Kỳ Kybe:", options=[50, 100, 150, 200], value=100, key="k_period")
+    k_data = st.session_state.target_data[offset : offset + k_days]
     
     if k_data:
-        # Extract digits for each day
-        digsets = []
-        seqs = [[] for _ in range(5)] # For Tai/Xiu
+        # 1. Extract Sequences & Tokens
+        seqs = [[] for _ in range(5)]
+        dates = []
         for d in k_data:
             val = d.get('xsmb_full') or (str(d['all_prizes'][0]) if 'all_prizes' in d else "")
             if len(val) >= 5:
-                digits_raw = [int(c) for c in val[-5:] if c.isdigit()]
-                if len(digits_raw) == 5:
-                    digsets.append(set(str(d) for d in digits_raw))
-                    for p in range(5): seqs[p].append(digits_raw[p])
+                digits = [int(c) for c in val[-5:]]
+                for p in range(5): seqs[p].append(digits[p])
+                dates.append(d['date'])
         
-        if digsets:
-            c1, c2 = st.columns([2, 1])
+        if seqs[0]:
+            L = len(seqs[0])
+            xi_toks = [classify_xito([seqs[p][i] for p in range(5)]) for i in range(L)]
+            ng_toks = [classify_ngau([seqs[p][i] for p in range(5)]) for i in range(L)]
+            sum3_toks = [str((seqs[2][i] + seqs[3][i] + seqs[4][i]) % 10) for i in range(L)]
+            sum5_toks = [str(sum(seqs[p][i] for p in range(5)) % 10) for i in range(L)]
             
-            with c1:
-                st.write("### 🔢 Chu kỳ 3-4 số (Hot Cycle)")
-                # Generate sample 3D/4D combos to check (e.g., from recent digits)
-                recent_digits = sorted(list(digsets[0]))
-                import itertools
-                combos3 = list(itertools.combinations(recent_digits, 3))
-                combos4 = list(itertools.combinations(recent_digits, 4))
-                
-                cycle_results = compute_kybe_cycles(digsets, combos3 + combos4)
-                
-                df_cyc = pd.DataFrame(cycle_results)
-                if not df_cyc.empty:
-                    df_cyc['tok'] = df_cyc['tok'].apply(lambda x: f"💎 {x}")
-                    st.dataframe(df_cyc.head(15), use_container_width=True, height=400)
+            c_main, c_side = st.columns([2, 1])
             
-            with c2:
-                st.write("### 📊 Thống kê Tài Xỉu")
-                tx_stats = calculate_taixiu_stats(seqs)
-                st.metric("Tổng kỳ:", tx_stats['total'])
+            with c_main:
+                st.write("### 📏 Kybe Grid (40 kỳ gần nhất)")
+                # Grid Header
+                grid_cols = st.columns([1.5] + [1]*20)
+                # Row 1-5: Positions
+                pos_labels = ["C.Ngàn", "Ngàn", "Trăm", "Chục", "Đơn vị", "Xì Tố", "Ngầu", "Tổng 3", "Tổng 5"]
                 
-                tc1, tc2 = st.columns(2)
-                tc1.metric("Tài (T):", tx_stats['counts'].get('T', 0))
-                tc2.metric("Xỉu (X):", tx_stats['counts'].get('X', 0))
-                
-                # Biểu đồ xu hướng (Recent 20)
-                st.write("**Xu hướng gần nhất (T/X):**")
-                st.code(" ".join(tx_stats['tx_tokens'][:20]))
-                st.write("**Rồng / Hổ:**")
-                st.code(" ".join(tx_stats['rh_tokens'][:20]))
+                def render_row(label, data, color="#94a3b8", is_bold=True, p_idx=None):
+                    cols = st.columns([1.5] + [1]*20)
+                    cols[0].write(f"**{label}**")
+                    for i in range(min(len(data), 20)):
+                        val = data[i]
+                        bg = "#1e293b"
+                        border_color = "#334155"
+                        
+                        # Logic "Gan" (Vắng mặt 4 ngày liên tiếp)
+                        is_gan = False
+                        if i < len(data) - 4 and p_idx is not None and p_idx < 5:
+                            found = False
+                            for lookback in range(1, 5):
+                                try:
+                                    # Check across all 5 digit positions in the history
+                                    for row_p in range(5):
+                                        if seqs[row_p][i+lookback] == val:
+                                            found = True; break
+                                    if found: break
+                                except: pass
+                            if not found: is_gan = True
+                        
+                        if is_gan: 
+                            bg = "#854d0e"; border_color = "#facc15" # Burned Orange / Yellow border
+                        
+                        cols[i+1].markdown(
+                            f"<div style='background:{bg}; color:{color}; text-align:center; border:1px solid {border_color}; "
+                            f"border-radius:4px; font-weight:{'bold' if is_bold else 'normal'}; font-family:Consolas, monospace; "
+                            f"font-size:14px; padding:2px 0;'>{val}</div>", 
+                            unsafe_allow_html=True
+                        )
 
-            st.divider()
-            st.write("### 🔢 Touch Pattern Module (Mức 0, 1, 2)")
+                for p in range(5): render_row(pos_labels[p], seqs[p], color="#f8fafc", p_idx=p)
+                render_row(pos_labels[5], xi_toks, color="#93c5fd", is_bold=False)
+                render_row(pos_labels[6], ng_toks, color="#ec4899")
+                render_row(pos_labels[7], sum3_toks, color="#a855f7")
+                render_row(pos_labels[8], sum5_toks, color="#f97316")
+                
+                st.divider()
+                st.write("### 🔢 Chu kỳ Bộ 3 & Bộ 4")
+                last5 = [seqs[p][0] for p in range(5)]
+                import itertools
+                combos3 = list(itertools.combinations(last5, 3))
+                combos4 = list(itertools.combinations(last5, 4))
+                digsets = [set(str(seqs[p][j]) for p in range(5)) for j in range(L)]
+                cyc_res = compute_kybe_cycles(digsets, combos3 + combos4)
+                
+                df_cyc = pd.DataFrame(cyc_res)
+                if not df_cyc.empty:
+                    df_cyc = df_cyc.head(15)
+                    st.table(df_cyc[['tok', 'cyc', 'miss', 'due', 'occ']])
             
-            tp1, tp2, tp3 = st.columns([1, 1, 1])
-            ngau_in = tp1.text_input("Ngầu:", "0,1,2")
-            tong_in = tp2.text_input("Tổng:", "5,6,7")
-            tp_mode = tp3.selectbox("Chế độ:", ["Chạm Tổng", "Chạm", "Tổng"])
-            
-            ng_digits = set("".join(filter(str.isdigit, ngau_in)))
-            tg_digits = set("".join(filter(str.isdigit, tong_in)))
-            
-            touch_res = get_kybe_touch_levels(ng_digits, tg_digits, tp_mode)
-            
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                st.error(f"💎 Mức 2 ({len(touch_res['muc2'])})")
-                st.code(",".join(touch_res['muc2']))
-            with m2:
-                st.warning(f"💎 Mức 1 ({len(touch_res['muc1'])})")
-                st.code(",".join(touch_res['muc1']))
-            with m3:
-                st.success(f"💎 Mức 0 ({len(touch_res['muc0'])})")
-                st.code(",".join(touch_res['muc0']))
+            with c_side:
+                st.write("### 📈 Phân tích nhanh")
+                
+                # Tai Xiu Stats
+                tx_stats = calculate_taixiu_stats(seqs, dates)
+                st.success(f"Tài: {tx_stats['counts'].get('T',0)} | Xỉu: {tx_stats['counts'].get('X',0)}")
+                for sig in tx_stats['signals']: st.warning(sig)
+                
+                st.write("---")
+                # Nhị hợp Giao nhau
+                nh_stats = get_frequency_matrix(seqs)
+                st.write("**Nhị hợp & Giao nhau:**")
+                for inter in nh_stats['intersections']:
+                    if inter['common']:
+                        st.markdown(f"🔹 **{inter['label']}**: Có `{','.join(inter['common'])}`")
+                        with st.expander("Xem dàn chung"):
+                            st.code(",".join(inter['dan']))
+
+                st.write("---")
+                # Bạc nhớ
+                bn_rows = [[seqs[p][i] for p in range(5)] for i in range(min(L, 40))]
+                p5t = get_bacnho_comb_preds(bn_rows, size=2)
+                pht = get_bacnho_comb_preds(bn_rows, size=2) # Adjust for Hậu Tứ if needed
+                st.write("**Bạc nhớ 5 Tinh:**")
+                st.code(" | ".join(p5t))
+                st.write("**Bạc nhớ Hậu Tứ:**")
+                st.code(" | ".join(pht))
+
+                st.write("---")
+                # Touch Pattern
+                st.write("**Touch Pattern:**")
+                tp1, tp2 = st.columns(2)
+                ng_in = tp1.text_input("Ngầu:", "0,1", key="kybe_ng")
+                tg_in = tp2.text_input("Tổng:", "5,6", key="kybe_tg")
+                touch_res = get_kybe_touch_levels(set(ng_in.split(",")), set(tg_in.split(",")))
+                st.error(f"Mức 2: {','.join(touch_res['muc2'][:10])}...")
+                st.warning(f"Mức 1: {','.join(touch_res['muc1'][:10])}...")
+                st.success(f"Mức 0: {','.join(touch_res['muc0'][:10])}...")
     else:
-        st.info("Không đủ dữ liệu để phân tích Kybe.")
+        st.info("Không đủ dữ liệu Kybe.")
 
 st.divider()
 st.caption(f"SieuGa Streamlit v3.1 (Kybe Edition) | {datetime.now().strftime('%d/%m/%Y %H:%M')}")
