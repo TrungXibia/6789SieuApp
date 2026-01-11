@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.virtualenv/
+.venv/
+env/
+.env
+.streamlit/
+.DS_Store
