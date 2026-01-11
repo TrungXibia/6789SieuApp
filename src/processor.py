@@ -226,59 +226,55 @@ def analyze_bet_cham(results_list, n_digits=2):
 def join_bc_cd_de(selected_map):
     """
     selected_map: { date: {'has_bc': bool, 'has_cd': bool, 'has_de': bool, 'combos': list} }
-    Counts frequency PER DATE.
+    Counts frequency PER SELECTION (Position + Date).
     """
     total_2d = Counter()
     total_3d = Counter()
     total_4d = Counter()
     
+    num_sources = 0
     for date, info in selected_map.items():
         combos = info['combos']
-        # Collect unique numbers for THIS DATE
-        date_2d = set()
-        date_3d = set()
-        date_4d = set()
-        
         if info['has_bc']:
+            num_sources += 1
+            s3, s4 = set(), set()
             for bc in combos:
-                for d in "0123456789": date_3d.add(bc + d)
-                for i in range(100): date_4d.add(bc + f"{i:02d}")
+                for d in "0123456789": s3.add(bc + d)
+                for i in range(100): s4.add(bc + f"{i:02d}")
+            total_3d.update(s3); total_4d.update(s4)
         
         if info['has_cd']:
+            num_sources += 1
+            s3, s4 = set(), set()
             for cd in combos:
                 for d in "0123456789": 
-                    date_3d.add(cd + d)
-                    date_3d.add(d + cd)
+                    s3.add(cd + d); s3.add(d + cd)
                 for i in range(100): 
-                    date_4d.add(f"{i//10:01d}" + cd + f"{i%10:01d}")
+                    s4.add(f"{i//10:01d}" + cd + f"{i%10:01d}")
+            total_3d.update(s3); total_4d.update(s4)
             
         if info['has_de']:
+            num_sources += 1
+            s2, s3, s4 = set(), set(), set()
             for de in combos:
-                date_2d.add(de)
-                for d in "0123456789": date_3d.add(d + de)
-                for i in range(100): date_4d.add(f"{i:02d}" + de)
-        
-        # Update global counts only once per date per number
-        total_2d.update(date_2d)
-        total_3d.update(date_3d)
-        total_4d.update(date_4d)
+                s2.add(de)
+                for d in "0123456789": s3.add(d + de)
+                for i in range(100): s4.add(f"{i:02d}" + de)
+            total_2d.update(s2); total_3d.update(s3); total_4d.update(s4)
             
     lvl_data = defaultdict(lambda: {'2d': set(), '3d': set(), '4d': set()})
-    all_freqs = {0}
-    for n, f in total_2d.items(): lvl_data[f]['2d'].add(n); all_freqs.add(f)
-    for n, f in total_3d.items(): lvl_data[f]['3d'].add(n); all_freqs.add(f)
-    for n, f in total_4d.items(): lvl_data[f]['4d'].add(n); all_freqs.add(f)
     
-    # Pre-populate Mức 0 with all possible numbers if not hit
-    hit_2d = set(total_2d.keys())
-    hit_3d = set(total_3d.keys())
-    hit_4d = set(total_4d.keys())
+    for n, f in total_2d.items(): lvl_data[f]['2d'].add(n)
+    for n, f in total_3d.items(): lvl_data[f]['3d'].add(n)
+    for n, f in total_4d.items(): lvl_data[f]['4d'].add(n)
     
+    # Mức 0
+    hit_2d = set(total_2d.keys()); hit_3d = set(total_3d.keys()); hit_4d = set(total_4d.keys())
     lvl_data[0]['2d'] = set(f"{i:02d}" for i in range(100)) - hit_2d
     lvl_data[0]['3d'] = set(f"{i:03d}" for i in range(1000)) - hit_3d
     lvl_data[0]['4d'] = set(f"{i:04d}" for i in range(10000)) - hit_4d
     
-    return lvl_data, max(all_freqs)
+    return lvl_data, num_sources
 def calculate_tc_stats(data_source, pos_idx=-2):
     """
     Calculate Cham/Tong gaps for a specific position (e.g. -2 for DE, -3 for Hundreds, -4 for Thousands).
