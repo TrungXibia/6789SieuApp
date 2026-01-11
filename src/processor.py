@@ -6,28 +6,29 @@ def extract_numbers_from_data(row, source_type):
     """
     Extract digits and overlapping pairs from row data based on source selection.
     source_type: "Điện Toán", "Thần Tài", or "Cả 2 (ĐT+TT)"
+    Returns: (digits_list, nhị_hợp_pairs, raw_source_string)
     """
     if source_type == "Thần Tài":
-        num_str = row.get('tt_number', '')
+        num_str = str(row.get('tt_number', ''))
     elif source_type == "Điện Toán":
-        num_str = "".join(row.get('dt_numbers', []))
+        num_str = "".join(map(str, row.get('dt_numbers', [])))
     else: # BOTH
-        dt = "".join(row.get('dt_numbers', []))
-        tt = row.get('tt_number', '')
+        dt = "".join(map(str, row.get('dt_numbers', [])))
+        tt = str(row.get('tt_number', ''))
         num_str = dt + tt
     
     digits = sorted(list(set([d for d in num_str if d.isdigit()])))
     pairs = sorted(list(set([a+b for a in digits for b in digits]))) if digits else []
-    return digits, pairs
+    return digits, pairs, num_str
 
 def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28):
     """
     Logic for Matrix tracking: Matches Tkinter legacy app.
     - Each row (r_idx) is a Source Date.
-    - Column Nk (k=1..28) is the Result Date at offset k-1 days after the source.
-    - Mapping: target_idx = r_idx - k + 1.
+    - Column Nk (k=1..28) is the Result Date at offset k days AFTER the source.
+    - Mapping: target_idx = r_idx - k.
     - If target_idx < 0: result hasn't happened yet (Top-Left Black Area).
-    - Pending (Orange): If the source hasn't appeared in any FUTURE result (idx < r_idx).
+    - Pending (Orange): If the source hasn't appeared in any day newer than itself (idx < r_idx).
     """
     if not data_source:
         return []
@@ -35,8 +36,8 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
     # Map master_data for source lookup
     source_map = {}
     for row in master_data:
-        d, p = extract_numbers_from_data(row, source_type)
-        source_map[row['date']] = set(p)
+        d, p, raw = extract_numbers_from_data(row, source_type)
+        source_map[row['date']] = {'combos': set(p), 'raw': raw}
 
     # Prepare historical results for check
     rows_data = [] # Newest first (idx 0 = newest)
@@ -50,10 +51,12 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
                'cd': db[-3:-1] if len(db)>=3 else "", 
                'de': db[-2:] if len(db)>=2 else ""}]
         
+        src_info = source_map.get(row['date'], {'combos': set(), 'raw': ""})
         rows_data.append({
             'date': row['date'],
             'items': it,
-            'source_combos': source_map.get(row['date'], set())
+            'source_combos': src_info['combos'],
+            'raw_src': src_info['raw']
         })
 
     matrix_results = []
@@ -62,9 +65,9 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
         combos_set = r_data['source_combos']
         
         for k in range(1, max_cols + 1):
-            # Target Result Index = r_idx - (k - 1)
-            # This looks 'down' from the source to the results of newer days.
-            t_idx = r_idx - k + 1
+            # Target Result Index = r_idx - k
+            # Column N1 is r_idx - 1 (Tomorrow)
+            t_idx = r_idx - k
             
             if t_idx < 0:
                 row_hits.append(None) # Top-Left Black (Future Result doesn't exist yet)
@@ -83,7 +86,6 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
             row_hits.append(hits)
 
         # Pending logic: If source hasn't appeared in any day NEWER than today (relative future)
-        # Newest days are index 0...r_idx-1
         has_hit_future = False
         for fut_idx in range(r_idx):
             fut_row = rows_data[fut_idx]
@@ -94,6 +96,7 @@ def process_matrix(data_source, master_data, source_type, pos_type, max_cols=28)
 
         matrix_results.append({
             'date': r_data['date'],
+            'raw_src': r_data['raw_src'],
             'items': r_data['items'],
             'hits': row_hits,
             'pending': not has_hit_future and len(combos_set) > 0,

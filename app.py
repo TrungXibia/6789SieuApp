@@ -86,23 +86,31 @@ with t_matrix:
     
     m_data = []
     for r in results[:40]:
-        row = [r['date'], r['items'][0]['db'] if r['items'] else ""]
+        row = [r['date'], r['raw_src']]
         for cell in r['hits']:
             if cell: row.append(", ".join(cell))
-            elif cell is None: row.append("")
             else: row.append("")
         m_data.append(row)
-    df_matrix = pd.DataFrame(m_data, columns=["Ngày", "Giải"] + [f"N{i+1}" for i in range(28)])
+    df_matrix = pd.DataFrame(m_data, columns=["Ngày", "Nguồn"] + [f"N{i+1}" for i in range(28)])
     
     def style_matrix(df):
         styles = pd.DataFrame('', index=df.index, columns=df.columns)
-        styles.iloc[:, 2:] = 'background-color: #1e293b; color: #94a3b8;'
+        # Zone Background Colors (Misses)
+        z_miss = ["#154360"]*7 + ["#6e4506"]*7 + ["#511610"]*7 + ["#4b1e52"]*7
+        
         for i, r in enumerate(results[:40]):
-            if r['pending']: styles.iloc[i, :2] = 'background-color: #92400e; color: #fef3c7;'
+            # Header columns
+            if r['pending']: styles.iloc[i, :2] = 'background-color: #92400e; color: #ffffff; font-weight: bold;'
+            else: styles.iloc[i, :2] = 'background-color: #1a1a1a; color: #ffffff;'
+            
             for j, hit_val in enumerate(r['hits']):
                 col_idx = j + 2
-                if hit_val is None: styles.iloc[i, col_idx] = 'background-color: #000000; color: #000000;'
-                elif hit_val: styles.iloc[i, col_idx] = 'background-color: #ef4444; color: #ffffff; font-weight: bold;'
+                if hit_val is None: 
+                    styles.iloc[i, col_idx] = 'background-color: #000000; color: #000000;'
+                elif hit_val: 
+                    styles.iloc[i, col_idx] = 'background-color: #ef4444; color: #ffffff; font-weight: bold;'
+                else: 
+                    styles.iloc[i, col_idx] = f'background-color: {z_miss[j]}; color: #94a3b8;'
         return styles
     st.dataframe(df_matrix.style.apply(style_matrix, axis=None), use_container_width=True, height=500)
 
